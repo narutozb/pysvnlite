@@ -31,7 +31,7 @@ for entry in repo.log(limit=10, verbose=True):
 
 本库从 `narutozb/svnpypi` 的 `v0.1.7`（提交 `ce6191be4122eb54bbfbbed16bad46413f222e62`）拆出，保留 MIT 许可和作者信息。独立发行从 `0.2.0` 开始，`from pysvnlite import SVNRepo` 等现有导入保持不变。
 
-旧 `svnpypi<=0.1.7` 曾直接拥有 `pysvnlite/` 文件。不要混装或在拆分后降级安装旧发行包。推荐新建虚拟环境；需要原地迁移时，先卸载旧发行包，再重新安装：
+**不要对旧捆绑版本直接执行普通升级。** 本机已验证：从 `svnpypi 0.1.7` 直接升级时，pip 先安装新依赖，再卸载旧包，会删除新库的同名文件并导致导入失败。`pip check` 仅检查元数据，不能证明文件完整。旧 `svnpypi<=0.1.7` 曾直接拥有 `pysvnlite/` 文件；不要混装或在拆分后降级安装旧发行包。推荐新建虚拟环境；需要原地迁移时，先卸载旧发行包，再重新安装：
 
 ```bash
 python -m pip uninstall -y svnpypi pysvnlite
