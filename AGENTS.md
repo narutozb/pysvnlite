@@ -16,6 +16,8 @@ package as a published dependency. Do not reintroduce a CLI or vendored code.
 - src/pysvnlite/repo.py owns command construction; runner.py owns subprocesses;
   parser_*.py and models.py own parsing and structured results.
 - Tests use pytest; tests/conftest.py adds src to sys.path.
+- tests/test_documentation.py checks documentation links, Python snippet syntax,
+  current README version, and API reference signatures/model fields against source.
 - Run `python -m ruff check src tests scripts`, `python -m mypy src scripts`,
   `python -m pytest -q` and `python scripts/release_pypi.py --allow-dirty`.
 - Build with hatchling. Wheel/sdist include only this package, metadata, README

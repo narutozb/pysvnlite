@@ -1,12 +1,25 @@
 # pysvnlite
 
-轻量、非交互的 Subversion 命令行封装和 XML 解析库，适合自动化脚本、资产历史查询和工作副本管理。
+轻量、非交互的 Subversion 命令行封装和 XML 解析库。用于自动化脚本、资产历史查询与工作副本管理，不需要运行 SVN 包注册服务。
 
-要求 Python >=3.9，并在 PATH 中提供原生 `svn` 客户端。库本身没有第三方运行时依赖，也不安装 `svnpypi` CLI。
+当前版本：**0.2.1**。本次为文档维护发布，保留 0.2.0 的 API 和运行时行为。
+
+## 安装
+
+要求 Python >=3.9 和 PATH 中可用的原生 `svn`。本库无第三方运行时依赖，包含 `py.typed`，不会安装 svnpypi CLI。生产请选择[仍受官方维护的 Python](https://devguide.python.org/versions/)。
+
+在已激活的新虚拟环境中执行：
 
 ```bash
-python -m pip install pysvnlite
+python -m pip install "pysvnlite==0.2.1"
+python -c "from importlib.metadata import version; from pysvnlite import SVNRepo; print(version('pysvnlite'))"
 ```
+
+**旧 svnpypi<=0.1.7 用户先看[安装与迁移](https://github.com/narutozb/pysvnlite/blob/main/docs/installation.md)。** 旧捆绑包与独立包拥有同名文件，普通升级或混装后卸载会破坏导入。推荐新环境；原地迁移必须先卸载再安装，不能只依赖 pip check。
+
+## 只读示例
+
+替换 URL 为你有读取权限的仓库；认证预先通过原生 SVN 配置。
 
 ```python
 from pysvnlite import SVNRepo
@@ -16,32 +29,36 @@ for entry in repo.log(limit=10, verbose=True):
     print(entry.revision, entry.author, entry.changed_paths)
 ```
 
-## 能力与边界
+## API 范围
 
-- `info/log/list/status/blame` 等结构化读取，返回类型化模型。
-- 工作副本检出、更新、增删、属性、提交、冲突检查；URL `mkdir/delete` 支持提交信息。
-- 历史 peg revision、二进制读取、原子文件下载。
-- 可选超时，有界日志滚盘、增量 XML 与路径事件；通过 `CAPABILITIES` 检查 `bounded_verbose_log_v1`。
-- 所有 SVN 调用添加 `--non-interactive`；认证、ACL、传输安全和凭据缓存由原生 SVN 管理。
-- 不提供服务端、Web UI、依赖解析器或自动删除策略。
+| 场景 | API |
+| --- | --- |
+| 元数据、目录、状态 | `info`、`list`、`status` |
+| 历史与变更路径 | `log`、`iter_log`、`iter_log_events`、`changed_files_of_commit` |
+| 历史文件、差异、逐行归属 | `cat`、`cat_to_file`、`diff`、`blame` |
+| 工作副本管理 | `checkout`、`update`、`switch`、`add`、`delete`、`revert`、`commit` |
+| 属性及其他操作 | `propset`、`propget`、`proplist`、`propdel`、`copy`、`move`、`mkdir`、`export`、`cleanup`、`resolve`、`lock`、`unlock` |
 
-完整示例见 [API 使用指南](https://github.com/narutozb/pysvnlite/blob/main/docs/basic-usage.md)，平台限制见 [Windows 路径说明](https://github.com/narutozb/pysvnlite/blob/main/docs/windows-paths.md)。
+完整签名和返回模型见 [API 参考](https://github.com/narutozb/pysvnlite/blob/main/docs/api-reference.md)，组合用法见 [API 使用指南](https://github.com/narutozb/pysvnlite/blob/main/docs/basic-usage.md)。
 
-## 从旧版 svnpypi 迁移
+## 安全与兼容边界
 
-本库从 `narutozb/svnpypi` 的 `v0.1.7`（提交 `ce6191be4122eb54bbfbbed16bad46413f222e62`）拆出，保留 MIT 许可和作者信息。独立发行从 `0.2.0` 开始，`from pysvnlite import SVNRepo` 等现有导入保持不变。
+- 所有 SVN 调用添加 `--non-interactive`；凭据、ACL、证书和 SSH 配置由原生 SVN 管理。
+- 写操作会修改工作副本或提交远端，先在临时测试仓库验证。库不提供自动回滚或事务。
+- `timeout=None` 不设时限；日志的硬字节上限需要显式设置。事件在 SVN 输出捕获完毕后产生，不是网络实时流。
+- `cat_to_file` 原子替换目标；失败保留旧文件。`cat` 会把整个文件读入内存。
+- 检出路径保护检测预期 `.svn`，但不是原生编码补丁。部分 Windows / TortoiseSVN 中文绝对路径仍受限，见 [Windows 路径说明](https://github.com/narutozb/pysvnlite/blob/main/docs/windows-paths.md)。
+- `SVNCommandError` 提供分类；`commit` 的普通非零退出可通过 `CommitResult.success` 返回，调用方必须检查。详见 API 参考。
+- 网络认证、macOS 和全部 SSH 后代进程组合并未完整实测，不应从 CI 通过推断支持所有环境。
 
-**不要对旧捆绑版本直接执行普通升级。** 本机已验证：从 `svnpypi 0.1.7` 直接升级时，pip 先安装新依赖，再卸载旧包，会删除新库的同名文件并导致导入失败。`pip check` 仅检查元数据，不能证明文件完整。旧 `svnpypi<=0.1.7` 曾直接拥有 `pysvnlite/` 文件；不要混装或在拆分后降级安装旧发行包。推荐新建虚拟环境；需要原地迁移时，先卸载旧发行包，再重新安装：
+## 文档与维护
 
-```bash
-python -m pip uninstall -y svnpypi pysvnlite
-python -m pip install "pysvnlite==0.2.0"
-python -m pip check
-```
+- [文档中心](https://github.com/narutozb/pysvnlite/blob/main/docs/README.md)
+- [安装、离线和迁移](https://github.com/narutozb/pysvnlite/blob/main/docs/installation.md)
+- [开发和 PyPI 发布](https://github.com/narutozb/pysvnlite/blob/main/docs/releasing.md)
+- [中文变更日志](https://github.com/narutozb/pysvnlite/blob/main/CHANGELOG.md)
 
-仍需要包注册 CLI 时，最后安装 `svnpypi>=0.2.0`，由其依赖声明安装本库。维护人员应先发布本库，再发布依赖它的 `svnpypi`。
-
-## 开发与发布
+在开发虚拟环境、仓库根目录执行：
 
 ```bash
 python -m pip install -e ".[dev,release]"
@@ -51,16 +68,6 @@ python -m pytest -q
 python scripts/release_pypi.py
 ```
 
-测试仅写入临时 `file://` SVN 仓库；缺少 `svn` 或 `svnadmin` 时集成测试跳过。CI 覆盖 Linux Python 3.9/3.12/3.14 与 Windows Python 3.12。Python 3.9 仅保留兼容性，生产使用仍受官方维护的运行时。
+脚本默认不上传。wheel / sdist 只包含本库及必要元数据，不含 AI 文件、测试、CI 或 svnpypi 源码；sdist 另允许 Hatchling 附带的 `.gitignore`。
 
-发布脚本默认不上传，检查 wheel/sdist 内容白名单、`py.typed`、Twine 元数据，并通过 `python -I -S` 从临时安装目录导入，避免本机环境掩盖漏包。AI 文件、测试、CI、发布脚本和 `svnpypi` 源码均不进入构建包；sdist 允许 Hatchling 为重建附带的 `.gitignore`。
-
-正式上传必须具有干净工作区、完整检查和已原样推送的 annotated 标签：
-
-```bash
-git tag -a v0.2.0 -m "pysvnlite 0.2.0"
-git push origin v0.2.0
-python scripts/release_pypi.py --upload --repository pypi --confirm-version 0.2.0
-```
-
-首次发布建议先用独立的 TestPyPI 凭据验证：`python scripts/release_pypi.py --upload --repository testpypi`。正式 PyPI token 不能用于 TestPyPI。只在隐藏密码提示中输入 token，不写入源码、命令行或日志。
+本库从 [svnpypi v0.1.7](https://github.com/narutozb/svnpypi/tree/v0.1.7) 拆出，独立发行从 0.2.0 开始；保留 MIT 许可和作者信息。需要包注册 CLI 时另行安装 [svnpypi](https://github.com/narutozb/svnpypi)，两项目分别维护和发布。

@@ -2,6 +2,8 @@
 
 本章给出独立发行包 `pysvnlite` 的常见调用样例：
 
+旧捆绑版先按[安装指南](installation.md)迁移。URL、修订号和路径是示例值；写操作仅在已授权测试仓库执行。完整签名与失败处理见 [API 参考](api-reference.md)。
+
 ```bash
 python -m pip install pysvnlite
 ```
@@ -26,8 +28,11 @@ for log in repo.log(limit=5, verbose=True):
 
 # 继续读取更早的 50 条历史，避免重新拉取前一页。
 page1 = repo.log(limit=50)
-oldest = page1[-1].revision
-page2 = repo.log(limit=50, revision=f"{oldest - 1}:0")
+page2 = []
+if page1:
+    oldest = page1[-1].revision
+    if oldest > 0:
+        page2 = repo.log(limit=50, revision=f"{oldest - 1}:0")
 ```
 
 `revision` 会原样传给 `svn log -r`，因此也支持 `HEAD:1`、`100:50` 和 SVN 日期修订语法。`verbose=False` 是默认值，可保持原有日志查询开销；需要 `changed_paths` 时显式启用。
@@ -45,12 +50,14 @@ if "bounded_verbose_log_v1" not in CAPABILITIES:
     raise RuntimeError("当前 pysvnlite 不支持有界 verbose 日志")
 
 repo = SVNRepo("svn+ssh://svn.company.com/project", timeout=120)
+spool_dir = Path(".svn-log-spool").resolve()
+spool_dir.mkdir(parents=True, exist_ok=True)
 entries = repo.iter_log(
     limit=100,
     revision="HEAD:1",
     verbose=True,
     max_output_bytes=512 * 1024 * 1024,
-    spool_dir=Path("D:/customsvn3-spool"),
+    spool_dir=spool_dir,
 )
 for entry in entries:
     print(entry.revision, len(entry.changed_paths))
@@ -69,16 +76,16 @@ events = repo.iter_log_events(
     revision="500000:1",
     verbose=True,
     max_output_bytes=4 * 1024**3,
-    spool_dir="D:/customsvn3-spool",
+    spool_dir=spool_dir,
 )
 try:
     for event in events:
         if isinstance(event, LogEntryStart):
-            begin_revision(event.revision)
+            print("begin", event.revision)
         elif isinstance(event, LogPathChangeEvent):
-            append_changed_path(event.revision, event.change)
+            print("path", event.revision, event.change.path)
         elif isinstance(event, LogEntryEnd):
-            finish_revision(event)
+            print("end", event.revision, event.changed_paths_count)
 finally:
     events.close()
 ```
@@ -108,7 +115,7 @@ repo = SVNRepo("svn+ssh://svn.company.com/project")
 url = "svn+ssh://svn.company.com/project/assets/deleted.ma"
 
 data = repo.cat(url, revision=120, peg=120)
-Path("/tmp/deleted.ma").write_bytes(data)
+Path("deleted.ma").write_bytes(data)
 
 info = repo.info(url, revision=120, peg=120)
 print(info.last_changed_rev)
@@ -136,6 +143,8 @@ new_file.write_text("hello\n", encoding="utf-8")
 
 wc.add([new_file])
 result = wc.commit(message="Add new.txt")
+if not result.success:
+    raise RuntimeError("Commit failed; inspect and redact the result before logging")
 print(result.success, result.revision)
 ```
 
@@ -165,7 +174,7 @@ repo.delete(
 `svnpypi upload` 是 Python 包注册表入口，只接受标准 wheel / sdist。FBX、模型、
 测试语料和其他任意文件应放在独立 SVN 路径，并直接使用 `pysvnlite`。下面是平铺目录的
 幂等同步示例：本地新增文件会 add，本地删除文件会在提交前调度 delete，内容不变时
-`revision` 为 `None`，不会生成新修订。
+通常不会生成新修订；但 `revision=None` 也可能表示回显解析失败，不能单独作为幂等判断依据。
 
 ```python
 import shutil
@@ -174,9 +183,12 @@ from pathlib import Path
 from pysvnlite import SVNCommandError, SVNRepo
 
 source_dir = Path("testdata")
-working_copy = Path(".svn-assets/fbxkit-testdata")
+working_copy = Path(".svn-assets/fbxkit-testdata").resolve()
 repository_root = "svn+ssh://svn.company.com/project"
 asset_url = f"{repository_root}/fbxkit-testdata"
+
+if not source_dir.is_dir():
+    raise ValueError("Source directory must exist before any SVN operation")
 
 remote = SVNRepo(repository_root, timeout=120)
 try:
@@ -202,8 +214,11 @@ source_files = {
     for path in source_dir.iterdir()
     if path.is_file()
 }
+allow_delete = False  # Enable only after reviewing the deletion set in a dedicated working copy.
 for target in working_copy.iterdir():
     if target.is_file() and target.name not in source_files:
+        if not allow_delete:
+            raise ValueError(f"Deletion requires explicit review: {target.name}")
         target.unlink()
 
 copied = []
@@ -222,6 +237,8 @@ result = wc.commit(
     message="Synchronize FBX test corpus",
     auto_delete_missing=True,
 )
+if not result.success:
+    raise RuntimeError("Commit failed; inspect and redact the result before logging")
 print(result.success, result.revision)
 ```
 
@@ -247,7 +264,7 @@ except SVNCommandError as exc:
     if exc.is_timeout_error:
         print("SVN 查询超时，可以稍后重试")
     else:
-        print(exc.category, exc.returncode, exc.stderr)
+        print(exc.category, exc.returncode, str(exc))
 ```
 
 缺失或无法打开的本地 `file://` 仓库归类为 `not_found`；远端连接失败仍归类为
