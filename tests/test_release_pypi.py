@@ -28,7 +28,7 @@ def test_read_project_metadata() -> None:
     metadata = read_project_metadata(Path("pyproject.toml"))
 
     assert metadata.name == release_module.PACKAGE
-    assert metadata.version == Version("0.2.0")
+    assert metadata.version == Version("0.2.1")
 
 
 def test_build_targets_pin_twine_compatible_core_metadata() -> None:
