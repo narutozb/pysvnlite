@@ -330,6 +330,46 @@ def _verify_checkout_path(path: Path, cmd: List[str], stdout: str) -> None:
         )
 
 
+def _run_captured(
+    full_cmd: List[str], cwd: Optional[str], timeout: Optional[float],
+    stdout: Union[int, IO[bytes]] = subprocess.PIPE,
+) -> tuple[Optional[bytes], bytes]:
+    try:
+        proc = subprocess.Popen(
+            full_cmd, cwd=cwd, stdin=subprocess.DEVNULL,
+            stdout=stdout, stderr=subprocess.PIPE,
+            start_new_session=os.name == "posix",
+            creationflags=(
+                int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                if os.name == "nt" else 0
+            ),
+        )
+    except OSError as error:
+        raise SVNCommandError(full_cmd, -1, "", str(error)) from error
+    output: Optional[bytes]
+    errors: Optional[bytes]
+    try:
+        output, errors = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        _kill_and_wait(proc)
+        output, errors = error.stdout, error.stderr
+        try:
+            output, errors = proc.communicate(timeout=_PROCESS_CLEANUP_SECONDS)
+        except (OSError, subprocess.TimeoutExpired):
+            # Never wait indefinitely for pipes held by an uncooperative descendant.
+            _kill_and_wait(proc)
+        raise _timeout_error(full_cmd, timeout, stdout=output, stderr=errors) from error
+    except OSError as error:
+        _kill_and_wait(proc)
+        raise SVNCommandError(full_cmd, -1, "", str(error)) from error
+    except BaseException:
+        _kill_and_wait(proc)
+        raise
+    if proc.returncode != 0:
+        raise SVNCommandError(full_cmd, proc.returncode, _decode_output(output), _decode_output(errors))
+    return output, errors or b""
+
+
 def run_svn(
     args: List[str],
     cwd: Optional[str] = None,
@@ -345,38 +385,11 @@ def run_svn(
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
-    try:
-        proc = subprocess.run(
-            full_cmd,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise _timeout_error(
-            full_cmd,
-            timeout,
-            stdout=e.stdout,
-            stderr=e.stderr,
-        ) from e
-    except OSError as e:
-        raise SVNCommandError(full_cmd, -1, "", str(e)) from e
-
-    if proc.returncode != 0:
-        raise SVNCommandError(
-            cmd=full_cmd,
-            returncode=proc.returncode,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
-        )
-
+    output, _ = _run_captured(full_cmd, cwd, timeout)
+    text = _decode_output(output).replace("\r\n", "\n").replace("\r", "\n")
     for checkout_path in _checkout_paths(args, cwd):
-        _verify_checkout_path(checkout_path, full_cmd, proc.stdout)
-    return proc.stdout
+        _verify_checkout_path(checkout_path, full_cmd, text)
+    return text
 
 
 def run_svn_bytes(
@@ -391,37 +404,8 @@ def run_svn_bytes(
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
-    try:
-        proc = subprocess.run(
-            full_cmd,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=False,  # 二进制模式
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise _timeout_error(
-            full_cmd,
-            timeout,
-            stdout=e.stdout,
-            stderr=e.stderr,
-        ) from e
-    except OSError as e:
-        raise SVNCommandError(full_cmd, -1, "", str(e)) from e
-
-    if proc.returncode != 0:
-        # 即使失败，stderr 也是 bytes，需要 decode 以便阅读
-        err_msg = proc.stderr.decode("utf-8", errors="replace")
-        out_msg = proc.stdout.decode("utf-8", errors="replace")
-        raise SVNCommandError(
-            cmd=full_cmd,
-            returncode=proc.returncode,
-            stdout=out_msg,
-            stderr=err_msg,
-        )
-
-    return proc.stdout
+    output, _ = _run_captured(full_cmd, cwd, timeout)
+    return output or b""
 
 
 @contextmanager
@@ -455,6 +439,7 @@ def run_svn_spooled(
             proc = subprocess.Popen(
                 full_cmd,
                 cwd=cwd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=os.name == "posix",
@@ -600,54 +585,9 @@ def run_svn_to_file(
         ) as output_file:
             temp_path = Path(output_file.name)
             try:
-                proc = subprocess.Popen(
-                    full_cmd,
-                    cwd=cwd,
-                    stdout=output_file,
-                    stderr=subprocess.PIPE,
-                )
-                try:
-                    _, stderr = proc.communicate(timeout=timeout)
-                except subprocess.TimeoutExpired as e:
-                    try:
-                        proc.kill()
-                    except OSError:
-                        pass
-                    final_stderr: Optional[bytes]
-                    try:
-                        _, final_stderr = proc.communicate()
-                    except OSError:
-                        final_stderr = e.stderr
-                        try:
-                            proc.wait()
-                        except OSError:
-                            pass
-                    raise _timeout_error(
-                        full_cmd,
-                        timeout,
-                        stderr=final_stderr or e.stderr,
-                    ) from e
-                except BaseException:
-                    try:
-                        proc.kill()
-                    except OSError:
-                        pass
-                    try:
-                        proc.wait()
-                    except OSError:
-                        pass
-                    raise
+                _run_captured(full_cmd, cwd, timeout, stdout=output_file)
             except OSError as e:
                 raise SVNCommandError(full_cmd, -1, "", str(e)) from e
-
-        if proc.returncode != 0:
-            err_msg = (stderr or b"").decode("utf-8", errors="replace")
-            raise SVNCommandError(
-                cmd=full_cmd,
-                returncode=proc.returncode,
-                stdout="",
-                stderr=err_msg,
-            )
 
         os.replace(temp_path, destination)
         temp_path = None

@@ -1,6 +1,6 @@
 # API 参考
 
-本页对应 pysvnlite 0.2.1 的 [SVNRepo 源码](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略绑定方法的 self；构造时使用 `SVNRepo(target, timeout=...)`。`Revision = Union[int, str]`，Path 来自 pathlib，集合类型来自 typing。
+本页对应 pysvnlite 0.2.2 的 [SVNRepo 源码](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略绑定方法的 self；构造时使用 `SVNRepo(target, timeout=...)`。`Revision = Union[int, str]`，Path 来自 pathlib，集合类型来自 typing。
 
 ## 调用约定
 

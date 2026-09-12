@@ -2,7 +2,7 @@
 
 轻量、非交互的 Subversion 命令行封装和 XML 解析库。用于自动化脚本、资产历史查询与工作副本管理，不需要运行 SVN 包注册服务。
 
-当前版本：**0.2.1**。本次为文档维护发布，保留 0.2.0 的 API 和运行时行为。
+当前版本：**0.2.2**。修复 SVN 超时后的进程树回收和管道阻塞，保持现有公开 API。
 
 ## 安装
 
@@ -11,7 +11,7 @@
 在已激活的新虚拟环境中执行：
 
 ```bash
-python -m pip install "pysvnlite==0.2.1"
+python -m pip install "pysvnlite==0.2.2"
 python -c "from importlib.metadata import version; from pysvnlite import SVNRepo; print(version('pysvnlite'))"
 ```
 
@@ -46,6 +46,7 @@ for entry in repo.log(limit=10, verbose=True):
 - 所有 SVN 调用添加 `--non-interactive`；凭据、ACL、证书和 SSH 配置由原生 SVN 管理。
 - 写操作会修改工作副本或提交远端，先在临时测试仓库验证。库不提供自动回滚或事务。
 - `timeout=None` 不设时限；日志的硬字节上限需要显式设置。事件在 SVN 输出捕获完毕后产生，不是网络实时流。
+- 0.2.2 统一文本、二进制、流式下载及提交路径的进程树超时清理，并限制终止后的管道等待；旧 0.2.1 及以下版本需升级。超时不是事务回滚，提交可能已在服务器完成。
 - `cat_to_file` 原子替换目标；失败保留旧文件。`cat` 会把整个文件读入内存。
 - 检出路径保护检测预期 `.svn`，但不是原生编码补丁。部分 Windows / TortoiseSVN 中文绝对路径仍受限，见 [Windows 路径说明](https://github.com/narutozb/pysvnlite/blob/main/docs/windows-paths.md)。
 - `SVNCommandError` 提供分类；`commit` 的普通非零退出可通过 `CommitResult.success` 返回，调用方必须检查。详见 API 参考。

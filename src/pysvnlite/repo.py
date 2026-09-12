@@ -5,11 +5,11 @@ import re
 from pathlib import Path
 from typing import Dict, Generator, List, Optional, Sequence, Union
 
-from subprocess import PIPE, CompletedProcess, TimeoutExpired, run
+from subprocess import CompletedProcess
 from urllib.parse import urlparse
 
 from .runner import run_svn, run_svn_bytes, run_svn_spooled, run_svn_to_file
-from .runner import _verify_checkout_path
+from .runner import _run_captured, _verify_checkout_path
 from .parser_info import parse_info_xml
 from .parser_log import iter_log_xml, iter_log_xml_events
 from .parser_status import parse_status_xml
@@ -53,29 +53,14 @@ def _decode_process_output(value: object) -> str:
 def _run_svn_result(args: List[str], timeout: Optional[float] = None) -> CompletedProcess[str]:
     full_cmd = ["svn", "--non-interactive"] + args
     try:
-        return run(
-            full_cmd,
-            stdout=PIPE,
-            stderr=PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
-    except TimeoutExpired as e:
-        timeout_text = "unknown" if timeout is None else f"{timeout:g}"
-        stderr = _decode_process_output(e.stderr)
-        message = f"SVN command timed out after {timeout_text} seconds."
-        if stderr:
-            message = f"{message}\n{stderr}"
-        raise SVNCommandError(
-            full_cmd,
-            -1,
-            _decode_process_output(e.stdout),
-            message,
-        ) from e
-    except OSError as e:
-        raise SVNCommandError(full_cmd, -1, "", str(e)) from e
+        stdout, stderr = _run_captured(full_cmd, cwd=None, timeout=timeout)
+    except SVNCommandError as error:
+        if error.returncode < 0:
+            raise
+        return CompletedProcess(full_cmd, error.returncode, error.stdout, error.stderr)
+    return CompletedProcess(
+        full_cmd, 0, _decode_process_output(stdout), _decode_process_output(stderr),
+    )
 
 
 def _exists(p: str) -> bool:

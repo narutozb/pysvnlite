@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -47,7 +46,7 @@ def test_repository_copy_wraps_process_start_failure(monkeypatch) -> None:
     def fail_to_start(*args, **kwargs):
         raise FileNotFoundError("svn executable not found")
 
-    monkeypatch.setattr("pysvnlite.repo.run", fail_to_start)
+    monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", fail_to_start)
 
     with pytest.raises(SVNCommandError) as exc_info:
         SVNRepo("svn://repo").copy(
@@ -63,14 +62,9 @@ def test_repository_copy_wraps_process_start_failure(monkeypatch) -> None:
 def test_repository_copy_wraps_timeout(monkeypatch) -> None:
     def time_out(*args, **kwargs):
         assert kwargs["timeout"] == 1
-        raise subprocess.TimeoutExpired(
-            args[0],
-            kwargs["timeout"],
-            output="partial",
-            stderr="connection stalled",
-        )
+        raise SVNCommandError(args[0], -1, "partial", "SVN command timed out after 1 seconds. connection stalled")
 
-    monkeypatch.setattr("pysvnlite.repo.run", time_out)
+    monkeypatch.setattr("pysvnlite.repo._run_captured", time_out)
 
     with pytest.raises(SVNCommandError) as exc_info:
         SVNRepo("svn://repo", timeout=1).copy(

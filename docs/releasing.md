@@ -44,7 +44,7 @@ python scripts/release_pypi.py --upload --repository testpypi
 在新的验证环境安装，并执行实际导入：
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ --no-deps "pysvnlite==0.2.1"
+python -m pip install --index-url https://test.pypi.org/simple/ --no-deps "pysvnlite==0.2.2"
 python -c "from importlib.metadata import version; from pysvnlite import SVNRepo; print(version('pysvnlite'))"
 ```
 
@@ -60,9 +60,9 @@ python -c "from importlib.metadata import version; from pysvnlite import SVNRepo
 本次版本命令：
 
 ```bash
-git tag -a v0.2.1 -m "pysvnlite 0.2.1"
-git push origin v0.2.1
-python scripts/release_pypi.py --upload --repository pypi --confirm-version 0.2.1
+git tag -a v0.2.2 -m "pysvnlite 0.2.2"
+git push origin v0.2.2
+python scripts/release_pypi.py --upload --repository pypi --confirm-version 0.2.2
 ```
 
 脚本拒绝生产上传使用 `--allow-dirty` 或 `--skip-checks`，并验证本地/远端 tag 对象一致且指向 HEAD。脚本不会暂停等待人工审核哈希；带 `--upload` 时检查通过即进入上传，务必先跑不上传的预检。

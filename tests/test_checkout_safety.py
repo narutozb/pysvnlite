@@ -32,8 +32,8 @@ def test_run_svn_rejects_false_success_without_removing_other_paths(monkeypatch,
     wrong_path = tmp_path / "wrong"
     (wrong_path / ".svn").mkdir(parents=True)
     monkeypatch.setattr(
-        "pysvnlite.runner.subprocess.run",
-        lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, "Checked out revision 0.", ""),
+        "pysvnlite.runner._run_captured",
+        lambda *a, **kw: (b"Checked out revision 0.", b""),
     )
     with pytest.raises(SVNCommandError, match="expected working copy") as error:
         run_svn(["checkout", "file:///repo", "expected"], cwd=str(tmp_path))

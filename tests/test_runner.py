@@ -12,6 +12,7 @@ import pytest
 
 from pysvnlite.exceptions import SVNCommandError
 from pysvnlite.runner import run_svn, run_svn_bytes, run_svn_spooled, run_svn_to_file
+from pysvnlite.repo import _run_svn_result
 
 
 class FakePopen:
@@ -19,7 +20,7 @@ class FakePopen:
     calls: list[dict[str, object]] = []
     communicate_timeouts: list[float | None] = []
 
-    def __init__(self, cmd, cwd=None, stdout=None, stderr=None) -> None:
+    def __init__(self, cmd, cwd=None, stdout=None, stderr=None, **kwargs) -> None:
         self.cmd = cmd
         self.cwd = cwd
         self.stdout = stdout
@@ -29,7 +30,11 @@ class FakePopen:
             "cwd": cwd,
             "stdout": stdout,
             "stderr": stderr,
+            **kwargs,
         })
+
+    def wait(self, timeout=None):
+        return self.returncode
 
     def communicate(self, timeout=None):
         self.__class__.communicate_timeouts.append(timeout)
@@ -56,7 +61,7 @@ class InterruptedPopen(FakePopen):
     def kill(self) -> None:
         self.__class__.killed = True
 
-    def wait(self) -> int:
+    def wait(self, timeout=None) -> int:
         self.__class__.waited = True
         return -9
 
@@ -161,7 +166,7 @@ def test_run_svn_wraps_process_start_failure(monkeypatch, runner) -> None:
     def fail_to_start(*args, **kwargs):
         raise FileNotFoundError("svn executable not found")
 
-    monkeypatch.setattr("pysvnlite.runner.subprocess.run", fail_to_start)
+    monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", fail_to_start)
 
     with pytest.raises(SVNCommandError) as exc_info:
         runner(["list", "svn://repo"])
@@ -214,16 +219,15 @@ def test_run_svn_to_file_kills_process_and_preserves_target_on_interrupt(
     ],
 )
 def test_run_svn_wraps_timeout(monkeypatch, runner, output, stderr) -> None:
-    def time_out(*args, **kwargs):
-        assert kwargs["timeout"] == 1.5
-        raise subprocess.TimeoutExpired(
-            args[0],
-            kwargs["timeout"],
-            output=output,
-            stderr=stderr,
-        )
+    class TimeoutProcess(FakePopen):
+        def communicate(self, timeout=None):
+            assert timeout in (1.5, 2.0)
+            raise subprocess.TimeoutExpired(self.cmd, timeout, output=output, stderr=stderr)
 
-    monkeypatch.setattr("pysvnlite.runner.subprocess.run", time_out)
+        def kill(self):
+            self.returncode = -9
+
+    monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", TimeoutProcess)
 
     with pytest.raises(SVNCommandError) as exc_info:
         runner(["log", "svn://repo"], timeout=1.5)
@@ -397,9 +401,11 @@ def _force_kill_process(pid: int) -> None:
         pass
 
 
-def test_run_svn_spooled_timeout_reaps_grandchild_inheriting_stdio(
+@pytest.mark.parametrize("kind", ["text", "bytes", "file", "spooled", "commit_result"])
+def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
     monkeypatch,
     tmp_path: Path,
+    kind: str,
 ) -> None:
     real_popen = subprocess.Popen
     grandchild_pid_path = tmp_path / "grandchild.pid"
@@ -418,10 +424,19 @@ def test_run_svn_spooled_timeout_reaps_grandchild_inheriting_stdio(
     monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", launch_helper)
     started = time.monotonic()
     grandchild_pid = None
+    destination = tmp_path / "artifact.bin"
+    destination.write_bytes(b"existing artifact")
     try:
         with pytest.raises(SVNCommandError) as exc_info:
-            with run_svn_spooled(["log"], timeout=0.5):
-                pass
+            if kind == "spooled":
+                with run_svn_spooled(["log"], timeout=1):
+                    pass
+            elif kind == "file":
+                run_svn_to_file(["cat"], destination, timeout=1)
+            elif kind == "commit_result":
+                _run_svn_result(["commit"], timeout=1)
+            else:
+                (run_svn if kind == "text" else run_svn_bytes)(["log"], timeout=1)
 
         assert exc_info.value.category == "timeout"
         assert time.monotonic() - started < 5
@@ -431,7 +446,11 @@ def test_run_svn_spooled_timeout_reaps_grandchild_inheriting_stdio(
         while _process_is_running(grandchild_pid) and time.monotonic() < deadline:
             time.sleep(0.05)
         assert not _process_is_running(grandchild_pid)
+        assert destination.read_bytes() == b"existing artifact"
+        assert not list(tmp_path.glob("*.part"))
     finally:
+        if grandchild_pid is None and grandchild_pid_path.exists():
+            grandchild_pid = int(grandchild_pid_path.read_text())
         if grandchild_pid is not None and _process_is_running(grandchild_pid):
             _force_kill_process(grandchild_pid)
 
