@@ -47,6 +47,14 @@ def test_readme_current_version_matches_metadata() -> None:
     assert f"**{version}**" in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize(
+    "document", DOCUMENTS + [ROOT / "AGENTS.md"],
+    ids=lambda path: path.relative_to(ROOT).as_posix(),
+)
+def test_documentation_stays_scoped_to_package(document: Path) -> None:
+    assert "svnpypi" not in document.read_text(encoding="utf-8").casefold()
+
+
 def test_api_reference_signatures_match_source() -> None:
     source = ast.parse((ROOT / "src/pysvnlite/repo.py").read_text(encoding="utf-8"))
     repo = next(

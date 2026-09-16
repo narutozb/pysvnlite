@@ -1,14 +1,14 @@
 # API 参考
 
-本页对应 pysvnlite 0.2.2 的 [SVNRepo 源码](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略绑定方法的 self；构造时使用 `SVNRepo(target, timeout=...)`。`Revision = Union[int, str]`，Path 来自 pathlib，集合类型来自 typing。
+pysvnlite 0.2.2 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
 ## 调用约定
 
-- 实例保存目标路径/URL，不会仅因构造而检出仓库。方法的默认目标是实例 target；显式传入的相对路径通常相对于进程 cwd，不会自动拼接到工作副本根目录，建议使用明确的绝对路径。
+- 构造函数保存目标路径或 URL，不执行检出。方法默认使用实例 `target`；显式相对路径通常以进程工作目录为基准，绝对路径不受工作目录影响。
 - `checkout` 为静态方法，`target` / `timeout` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
-- `revision` 是 operative revision，`peg` 用于定位历史对象。读方法支持的 peg 见签名；不要假定所有写方法都有相同的 `@` 消歧能力。
+- `revision` 指定内容修订，`peg` 定位历史对象。`peg` 参数和 `@` 消歧仅适用于支持它们的方法。
 - URL `mkdir/delete` 必须且只能提供 message 或 message_file，并立即提交；工作副本形式不接受提交信息，只调度本地变更。
-- URL `copy/move` 返回 CommitResult；工作副本操作返回 None。操作前检查其参数组合，不要将多个调用视作事务。
+- URL `copy/move` 返回 CommitResult；工作副本操作返回 None。多次方法调用不组成事务。
 - `cat` / `diff` 返回 bytes；`cat_to_file` 原子替换成功结果。list 的 ignore_externals 参数保留兼容，但不会传给原生 SVN。
 - `log` 返回列表，`iter_log` 按 revision 返回模型，`iter_log_events` 按路径返回事件；两种 iterator 都先完成 stdout 捕获再解析。需要限制日志大小时设置 max_output_bytes，并确保 spool_dir 已存在且可写。
 - `blame` 只解析 XML 元数据，BlameLine.content 不提供文件正文，需另行 cat。
@@ -17,9 +17,9 @@
 
 大多数命令的启动、非零返回码、超时和检出后置条件失败抛出 SVNCommandError。无效参数组合可能抛出 ValueError。日志输出超限抛出其子类 SVNOutputLimitError，category 为 output_limit。
 
-**commit 不能只依赖异常判断成功。** 冲突阻断、自动清理失败或原生提交非零返回可能产生 `CommitResult(success=False)`。前置 status、add 或进程启动等失败仍可能抛异常，调用方必须同时处理异常和结果。
+`commit` 的冲突阻断、自动清理失败或原生提交非零返回可能产生 `CommitResult(success=False)`；前置 status、add 或进程启动失败可能抛出异常。调用方需同时检查结果和异常。
 
-成功的 revision 仍可能为 None：可能没有新提交，也可能是本地化回显未解析出修订号。因此不要仅凭 revision 为 None 宣称“没有变化”。成功后的日志补查失败时 changed_paths 可为空；需要审计完整性时另行核对 SVN。
+`revision=None` 可能表示没有新提交或未解析出修订号。提交后的日志补查失败时 `changed_paths` 可为空；审计数据需另行核对 SVN。
 
 ```python
 from pysvnlite import SVNCommandError, SVNRepo
@@ -36,13 +36,13 @@ if not result.success:
 print(result.revision)
 ```
 
-该示例会提交工作副本，仅用于已授权测试仓库。`str(exc)` 会脱敏 URL userinfo；cmd/stdout/stderr 和 CommitResult 的原始字段不会自动脱敏，写入日志前需使用 redact_url_credentials。该函数不保证隐藏任意命令行密码参数，因此不要把密码放在参数里。
+`str(exc)` 会脱敏 URL userinfo。`cmd`、`stdout`、`stderr` 和 CommitResult 的原始字段需使用 `redact_url_credentials` 处理后记录；该函数不处理任意命令行密码参数。
 
-category 可能为 timeout、authentication、authorization、network、not_found、property_not_found、unknown，输出上限子类另为 output_limit；判定基于原生错误文本，不等于对所有本地化文案的承诺。检出路径异常没有专门 category，需阅读 stderr；详见 [Windows 说明](windows-paths.md)。
+`category` 包括 `timeout`、`authentication`、`authorization`、`network`、`not_found`、`property_not_found`、`unknown` 和输出上限子类的 `output_limit`。分类基于原生错误文本，受客户端语言影响。检出路径异常通过 `stderr` 描述，详见 [Windows 路径兼容性](windows-paths.md)。
 
 ## 完整方法签名
 
-以下签名由源码核对，文档测试会在发生漂移时失败。
+签名与源码通过文档测试校验。
 
 ### SVNRepo.__init__
 

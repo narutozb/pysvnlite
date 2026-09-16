@@ -1,8 +1,7 @@
 # AGENTS.md
 
-This repository owns only `src/pysvnlite`, extracted from svnpypi v0.1.7.
-The svnpypi CLI lives at https://github.com/narutozb/svnpypi and consumes this
-package as a published dependency. Do not reintroduce a CLI or vendored code.
+This repository owns only `src/pysvnlite`, an independent Subversion Python library.
+Keep runtime code and documentation scoped to this package.
 
 - Preserve Python >=3.9, existing API signatures and MIT attribution.
 - Use standard library facilities; avoid new runtime dependencies.
@@ -17,7 +16,10 @@ package as a published dependency. Do not reintroduce a CLI or vendored code.
   parser_*.py and models.py own parsing and structured results.
 - Tests use pytest; tests/conftest.py adds src to sys.path.
 - tests/test_documentation.py checks documentation links, Python snippet syntax,
-  current README version, and API reference signatures/model fields against source.
+  current README version, package scope, and API reference signatures/model fields
+  against source.
+- Write concise, factual documentation. Avoid conversational or Q&A framing,
+  cross-project instructions, and migration history for other packages.
 - Run `python -m ruff check src tests scripts`, `python -m mypy src scripts`,
   `python -m pytest -q` and `python scripts/release_pypi.py --allow-dirty`.
 - Build with hatchling. Wheel/sdist include only this package, metadata, README
