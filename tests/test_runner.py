@@ -401,7 +401,9 @@ def _force_kill_process(pid: int) -> None:
         pass
 
 
-@pytest.mark.parametrize("kind", ["text", "bytes", "file", "spooled", "commit_result"])
+@pytest.mark.parametrize(
+    "kind", ["text", "bytes", "file", "spooled", "commit_result", "bounded_bytes", "bounded_file"],
+)
 def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
     monkeypatch,
     tmp_path: Path,
@@ -433,6 +435,10 @@ def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
                     pass
             elif kind == "file":
                 run_svn_to_file(["cat"], destination, timeout=1)
+            elif kind == "bounded_file":
+                run_svn_to_file(["cat"], destination, timeout=1, max_output_bytes=100)
+            elif kind == "bounded_bytes":
+                run_svn_bytes(["cat"], timeout=1, max_output_bytes=100)
             elif kind == "commit_result":
                 _run_svn_result(["commit"], timeout=1)
             else:
@@ -480,3 +486,60 @@ def test_run_svn_spooled_drains_large_stderr_without_deadlock(monkeypatch) -> No
     assert stderr_tail in exc_info.value.stderr
     assert "output truncated" in exc_info.value.stderr
     assert len(exc_info.value.stdout) < 140000
+
+
+@pytest.mark.parametrize("to_file", [False, True])
+@pytest.mark.parametrize("limit", [0, 3, 4, -1])
+def test_bounded_binary_runners_enforce_limit_and_cleanup(
+    monkeypatch, tmp_path: Path, to_file: bool, limit: int,
+) -> None:
+    content = b"\x00\xffab"
+    monkeypatch.setattr(SpoolPopen, "stdout_bytes", content)
+    monkeypatch.setattr(SpoolPopen, "stderr_bytes", b"")
+    monkeypatch.setattr(SpoolPopen, "hang_until_killed", 0 <= limit < len(content))
+    monkeypatch.setattr(SpoolPopen, "final_returncode", 0)
+    monkeypatch.setattr(SpoolPopen, "instances", [])
+    monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", SpoolPopen)
+    output = tmp_path / "download.bin"
+    output.write_bytes(b"old file")
+
+    def read():
+        if to_file:
+            return run_svn_to_file(["cat", "svn://repo/file"], output, max_output_bytes=limit)
+        return run_svn_bytes(["cat", "svn://repo/file"], max_output_bytes=limit)
+
+    if limit < 0:
+        with pytest.raises(ValueError):
+            read()
+        assert not SpoolPopen.instances
+    elif limit < len(content):
+        with pytest.raises(SVNCommandError) as error:
+            read()
+        assert error.value.category == "output_limit"
+        assert SpoolPopen.instances[0].killed
+        assert SpoolPopen.instances[0].waited
+    else:
+        result = read()
+        assert (output.read_bytes() if to_file else result) == content
+    if limit < len(content):
+        assert output.read_bytes() == b"old file"
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_bounded_download_copy_failure_preserves_destination(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(SpoolPopen, "stdout_bytes", b"content")
+    monkeypatch.setattr(SpoolPopen, "stderr_bytes", b"")
+    monkeypatch.setattr(SpoolPopen, "hang_until_killed", False)
+    monkeypatch.setattr(SpoolPopen, "final_returncode", 0)
+    monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", SpoolPopen)
+
+    def fail_copy(*args):
+        raise OSError("synthetic disk full")
+
+    monkeypatch.setattr("pysvnlite.runner.shutil.copyfileobj", fail_copy)
+    output = tmp_path / "download.bin"
+    output.write_bytes(b"old file")
+    with pytest.raises(SVNCommandError, match="synthetic disk full"):
+        run_svn_to_file(["cat", "svn://repo/file"], output, max_output_bytes=7)
+    assert output.read_bytes() == b"old file"
+    assert not list(tmp_path.glob("*.part"))

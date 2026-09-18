@@ -325,3 +325,8 @@ def test_commit_blocks_real_tree_conflict_before_svn_commit(tmp_path: Path) -> N
     assert result.returncode == 1
     assert result.pre_summary.tree_conflicted == tree_conflicts
     assert "Conflicts exist" in result.stderr
+
+    scoped = repo.commit(message="selected conflict must be blocked", paths=[second_wc / "dir"])
+    assert scoped.success is False
+    assert scoped.pre_summary.tree_conflicted == tree_conflicts
+    assert "Conflicts exist" in scoped.stderr

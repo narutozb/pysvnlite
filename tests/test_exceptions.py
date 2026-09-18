@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from pysvnlite.exceptions import SVNCommandError, redact_url_credentials
 
 
@@ -112,3 +114,23 @@ def test_svn_error_redacts_url_credentials_from_display_text() -> None:
     assert "top-secret" not in displayed
     assert "https://***@svn.example.com/packages" in displayed
     assert redact_url_credentials(url) == "https://***@svn.example.com/packages"
+
+
+@pytest.mark.parametrize("name", ["E180001.txt", "E1800019.txt", "unable to open repository.txt"])
+def test_local_repository_error_does_not_classify_path_text(name: str) -> None:
+    error = SVNCommandError(
+        ["svn", "info", "file:///repository"], 1, "",
+        f"svn: E999999: path '/trunk/{name}' failed",
+    )
+    assert not error.is_local_repository_not_found
+    assert error.category == "unknown"
+
+
+@pytest.mark.parametrize("prefix", ["", "svn: ", "svn.exe: "])
+def test_local_repository_error_accepts_complete_diagnostic_code(prefix: str) -> None:
+    error = SVNCommandError(
+        ["svn", "info", "file:///repository"], 1, "",
+        f"{prefix}E180001: localized diagnostic",
+    )
+    assert error.is_local_repository_not_found
+    assert error.category == "not_found"

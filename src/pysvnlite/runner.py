@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -396,11 +397,19 @@ def run_svn_bytes(
     args: List[str],
     cwd: Optional[str] = None,
     timeout: Optional[float] = None,
+    *,
+    max_output_bytes: Optional[int] = None,
 ) -> bytes:
     """
     运行 svn 子进程并返回 stdout(bytes)。
     用于 svn cat 等可能返回二进制内容的命令。
     """
+    if max_output_bytes is not None:
+        with run_svn_spooled(
+            args, cwd=cwd, timeout=timeout, max_output_bytes=max_output_bytes,
+        ) as stream:
+            return stream.read()
+
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
@@ -565,11 +574,15 @@ def run_svn_to_file(
     output_path: Union[str, Path],
     cwd: Optional[str] = None,
     timeout: Optional[float] = None,
+    *,
+    max_output_bytes: Optional[int] = None,
 ) -> None:
     """
     运行 svn 子进程并把 stdout 直接写入文件。
     用于 svn cat 大文件，避免 Python 进程一次性持有完整 bytes。
     """
+    if max_output_bytes is not None and max_output_bytes < 0:
+        raise ValueError("max_output_bytes must be greater than or equal to zero")
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
@@ -585,7 +598,14 @@ def run_svn_to_file(
         ) as output_file:
             temp_path = Path(output_file.name)
             try:
-                _run_captured(full_cmd, cwd, timeout, stdout=output_file)
+                if max_output_bytes is None:
+                    _run_captured(full_cmd, cwd, timeout, stdout=output_file)
+                else:
+                    with run_svn_spooled(
+                        args, cwd=cwd, timeout=timeout,
+                        max_output_bytes=max_output_bytes, spool_dir=destination.parent,
+                    ) as stream:
+                        shutil.copyfileobj(stream, output_file)
             except OSError as e:
                 raise SVNCommandError(full_cmd, -1, "", str(e)) from e
 

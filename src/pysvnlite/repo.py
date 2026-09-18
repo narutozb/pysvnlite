@@ -31,13 +31,11 @@ from .exceptions import SVNCommandError
 
 
 _commit_rev_patterns = (
-    re.compile(r"Committed revision\s+(\d+)", re.IGNORECASE),
-    re.compile(r"提交后的版本为\s*(\d+)", re.IGNORECASE),
-    re.compile(r"已提交版本\s*(\d+)", re.IGNORECASE),
-    re.compile(r"提交版本\s*(\d+)", re.IGNORECASE),
+    re.compile(r"Committed revision\s+(\d+)[.]?", re.IGNORECASE),
+    re.compile(r"提交后的版本为\s*(\d+)[.。]?"),
+    re.compile(r"已提交版本\s*(\d+)[.。]?"),
+    re.compile(r"提交版本\s*(\d+)[.。]?"),
 )
-_commit_hint_re = re.compile(r"(commit|committed|revision|版本|提交|リビジョン)", re.IGNORECASE)
-_any_number_re = re.compile(r"(\d+)")
 Revision = Union[int, str]
 CAPABILITIES = frozenset({"bounded_verbose_log_v1"})
 
@@ -83,7 +81,7 @@ def _with_peg(target: Union[str, Path], peg: Optional[Revision]) -> str:
     target_text = str(target)
     if peg is not None:
         return f"{target_text}@{peg}"
-    if "@" in target_text and not target_text.endswith("@"):
+    if "@" in target_text and (isinstance(target, Path) or not target_text.endswith("@")):
         return f"{target_text}@"
     return target_text
 
@@ -91,23 +89,14 @@ def _with_peg(target: Union[str, Path], peg: Optional[Revision]) -> str:
 def _parse_commit_revision(stdout: str) -> Optional[int]:
     content = stdout or ""
 
-    for pattern in _commit_rev_patterns:
-        m = pattern.search(content)
-        if m:
-            try:
-                return int(m.group(1))
-            except ValueError:
-                return None
-
     for line in content.splitlines():
-        if not _commit_hint_re.search(line):
-            continue
-        m = _any_number_re.search(line)
-        if m:
-            try:
-                return int(m.group(1))
-            except ValueError:
-                return None
+        for pattern in _commit_rev_patterns:
+            match = pattern.fullmatch(line.strip())
+            if match:
+                try:
+                    return int(match.group(1))
+                except ValueError:
+                    return None
 
     return None
 
@@ -138,6 +127,8 @@ class SVNRepo:
 
     def __init__(self, target: Union[str, Path], *, timeout: Optional[float] = None):
         self._target = str(target)
+        # Preserve Path semantics for literal trailing @ in read operations.
+        self._read_target = target
         self._timeout = timeout
 
     @property
@@ -151,10 +142,20 @@ class SVNRepo:
     def _run(self, args: List[str]) -> str:
         return run_svn(args, timeout=self._timeout)
 
-    def _run_bytes(self, args: List[str]) -> bytes:
+    def _run_bytes(self, args: List[str], *, max_output_bytes: Optional[int] = None) -> bytes:
+        if max_output_bytes is not None:
+            return run_svn_bytes(args, timeout=self._timeout, max_output_bytes=max_output_bytes)
         return run_svn_bytes(args, timeout=self._timeout)
 
-    def _run_to_file(self, args: List[str], output_path: Union[str, Path]) -> None:
+    def _run_to_file(
+        self, args: List[str], output_path: Union[str, Path],
+        *, max_output_bytes: Optional[int] = None,
+    ) -> None:
+        if max_output_bytes is not None:
+            run_svn_to_file(
+                args, output_path, timeout=self._timeout, max_output_bytes=max_output_bytes,
+            )
+            return
         run_svn_to_file(args, output_path, timeout=self._timeout)
 
     def _run_result(self, args: List[str]) -> CompletedProcess[str]:
@@ -178,7 +179,7 @@ class SVNRepo:
             args.append("-v")
         if limit is not None:
             args += ["-l", str(limit)]
-        args.append(_with_peg(self._target, peg))
+        args.append(_with_peg(self._read_target, peg))
         return args
 
     # ---------- read ops ----------
@@ -189,7 +190,7 @@ class SVNRepo:
         revision: Optional[Revision] = None,
         peg: Optional[Revision] = None,
     ) -> RepoInfo:
-        target = path_or_url if path_or_url is not None else self._target
+        target = path_or_url if path_or_url is not None else self._read_target
         args = ["info", "--xml"]
         if revision is not None:
             args += ["-r", str(revision)]
@@ -305,7 +306,7 @@ class SVNRepo:
         默认列出 self.target (如果是 URL) 或工作副本对应的 URL。
         ignore_externals 为兼容参数；svn list 默认不包含 externals。
         """
-        target = str(path_or_url) if path_or_url else self._target
+        target = path_or_url if path_or_url else self._read_target
         args = ["list", "--xml"]
         if revision is not None:
             args += ["-r", str(revision)]
@@ -324,6 +325,7 @@ class SVNRepo:
         *,
         revision: Optional[Revision] = None,
         peg: Optional[Revision] = None,
+        max_output_bytes: Optional[int] = None,
     ) -> bytes:
         """
         svn cat: 输出指定版本的文件内容。
@@ -332,7 +334,7 @@ class SVNRepo:
         if revision is not None:
             args += ["-r", str(revision)]
         args.append(_with_peg(path_or_url, peg))
-        return self._run_bytes(args)
+        return self._run_bytes(args, max_output_bytes=max_output_bytes)
 
     def cat_to_file(
         self,
@@ -341,6 +343,7 @@ class SVNRepo:
         *,
         revision: Optional[Revision] = None,
         peg: Optional[Revision] = None,
+        max_output_bytes: Optional[int] = None,
     ) -> None:
         """
         svn cat: 将指定版本的文件内容直接写入本地文件。
@@ -349,7 +352,7 @@ class SVNRepo:
         if revision is not None:
             args += ["-r", str(revision)]
         args.append(_with_peg(path_or_url, peg))
-        self._run_to_file(args, output_path)
+        self._run_to_file(args, output_path, max_output_bytes=max_output_bytes)
 
     def changed_files_of_commit(
         self,
@@ -657,7 +660,7 @@ class SVNRepo:
                 rev_str += f":{revision_to}"
             args += ["-r", rev_str]
 
-        target = path if path else self._target
+        target = path if path else self._read_target
         args.append(_with_peg(target, peg))
 
         return self._run_bytes(args)
@@ -713,8 +716,20 @@ class SVNRepo:
 
         commit_targets: List[str] = [self._target] if not paths else [str(p) for p in paths]
 
+        def selected_status() -> List[StatusItem]:
+            if not paths:
+                return self.status(depth="infinity")
+            # Query each selected target; never schedule siblings from self.target.
+            items: Dict[str, StatusItem] = {}
+            for target in commit_targets:
+                scoped = SVNRepo(target, timeout=self._timeout)
+                for item in scoped.status(depth="infinity", ignore_externals=True):
+                    key = os.path.normcase(os.path.abspath(item.path))
+                    items[key] = item
+            return list(items.values())
+
         # (1) 预采样状态摘要
-        pre_items = self.status(depth="infinity")
+        pre_items = selected_status()
         pre_summary = _summarize_status(pre_items)
 
         # (2) 冲突阻断
@@ -775,13 +790,13 @@ class SVNRepo:
                     )
 
             # 重新采样摘要（让返回结果更真实）
-            pre_items = self.status(depth="infinity")
+            pre_items = selected_status()
             pre_summary = _summarize_status(pre_items)
 
         # (4) 可选：自动 add 未受控新文件
         if add_unversioned and pre_summary.unversioned:
             self.add(pre_summary.unversioned, force=True, no_ignore=add_ignored, depth=None)
-            pre_items = self.status(depth="infinity")
+            pre_items = selected_status()
             pre_summary = _summarize_status(pre_items)
 
         # (5) 拼接 commit 命令

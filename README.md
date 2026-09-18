@@ -2,14 +2,14 @@
 
 Python 的 Subversion 命令行封装与 XML 解析库，提供仓库查询、历史读取和工作副本管理 API。
 
-当前版本：**0.2.2**。Python >=3.9，无第三方运行时依赖，包含类型标记 `py.typed`。
+当前版本：**0.2.3**。Python >=3.9，无第三方运行时依赖，包含类型标记 `py.typed`。
 
 ## 安装
 
 系统需安装 Subversion，并将 `svn` 加入 `PATH`。
 
 ```bash
-python -m pip install "pysvnlite==0.2.2"
+python -m pip install "pysvnlite==0.2.3"
 svn --version --quiet
 ```
 
@@ -41,6 +41,9 @@ for entry in repo.log(limit=10, verbose=True):
 - `timeout=None` 表示不限时。超时后的进程清理不回滚已完成的远端提交。
 - `commit` 的普通失败可返回 `CommitResult(success=False)`；前置操作和执行失败也可能抛出异常。
 - `cat` 返回完整文件的 `bytes`；`cat_to_file` 下载成功后原子替换目标，失败保留原文件。
+- `cat` / `cat_to_file` 支持可选 `max_output_bytes`，默认不限制，超限不发布截断结果。
+- 显式 `commit(paths=...)` 的自动准备操作限定于所选目标；不自动扩大到父目录。
+- 支持 `peg` 的读取方法将 `Path` 视为字面路径；末尾含字面量 `@` 的字符串需显式 `peg=""` 或具体修订。
 - 日志迭代器在捕获完成后解析输出；`max_output_bytes` 控制原始日志输出上限。
 
 ## 文档

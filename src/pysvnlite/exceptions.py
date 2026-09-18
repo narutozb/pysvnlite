@@ -8,6 +8,11 @@ from typing import List
 _URL_USERINFO_RE = re.compile(
     r"(?i)([a-z][a-z0-9+.-]*://)([^/@\s]+)@"
 )
+_LOCAL_REPOSITORY_ERROR_RE = re.compile(
+    r"^\s*(?:svn(?:\.exe)?:\s*)?"
+    r"(?:E180001:|(?:[EW]\d{6}:\s*)?Unable to open repository(?:\s|:|$))",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def redact_url_credentials(text: str) -> str:
@@ -56,12 +61,8 @@ class SVNCommandError(RuntimeError):
     @property
     def is_local_repository_not_found(self) -> bool:
         combined_text = "\n".join([*self.cmd, self.output_text]).lower()
-        return "file://" in combined_text and _contains_any(
-            self.output_text,
-            (
-                "e180001",
-                "unable to open repository",
-            ),
+        return "file://" in combined_text and bool(
+            _LOCAL_REPOSITORY_ERROR_RE.search(self.output_text)
         )
 
     @property
