@@ -1,0 +1,64 @@
+name: "缺陷 / Bug"
+description: "可复现的功能错误、回归或 SVN 客户端兼容问题"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        支持中文或英文，未知项注明。参考 [填写例文](https://github.com/narutozb/pysvnlite/blob/main/docs/issue-examples.md)；漏洞按 [安全政策](https://github.com/narutozb/pysvnlite/blob/main/SECURITY.md)私下报告。
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: "提交前检查"
+      options:
+        - label: "已检索已有 issues；本报告不含凭据、私人仓库地址或生产资产。"
+          required: true
+  - type: input
+    id: package_version
+    attributes:
+      label: "发现基线：版本与安装来源"
+      placeholder: "pysvnlite 精确版本；PyPI / 自建 wheel / 源码（editable 或普通安装）"
+    validations:
+      required: true
+  - type: textarea
+    id: source_revision
+    attributes:
+      label: "发现基线：源码提交与修改情况"
+      description: "仅源码安装填写：分支/标签、完整 SHA、工作区是否干净及修改范围。不要只写最新 main；正式包用户可留空。"
+  - type: textarea
+    id: environment
+    attributes:
+      label: "环境"
+      description: "操作系统、Python、SVN 客户端及版本；相关时补充协议、路径字符/代码页和宿主。"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "最小复现"
+      description: "提供完整调用和合成数据步骤。写操作只使用临时本地 file:// 仓库；不能安全复现时说明限制。"
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: "预期与实际结果"
+      description: "保留脱敏诊断码、返回值/异常类型及影响。"
+    validations:
+      required: true
+  - type: textarea
+    id: native_comparison
+    attributes:
+      label: "原生 SVN 对照与依据"
+      description: "相关时提供同一目标、revision/peg、深度和选项的只读对照或官方依据。未做对照可明确写出，不要求生产写入。"
+  - type: textarea
+    id: affected_versions
+    attributes:
+      label: "已验证的版本范围"
+      description: "其他已验证版本、最后正常版本；未知就注明。后续复测追加回复，不覆盖发现基线。"
+  - type: textarea
+    id: evidence
+    attributes:
+      label: "补充证据"
+      description: "脱敏文本日志、临时规避方式、相关 issue 链接；不要上传完整环境变量或私有资产。"

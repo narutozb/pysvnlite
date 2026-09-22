@@ -48,6 +48,8 @@ for entry in repo.log(limit=10, verbose=True):
 
 ## 文档
 
+- [贡献与 issue 规范](https://github.com/narutozb/pysvnlite/blob/main/CONTRIBUTING.md)、[版本与分支策略](https://github.com/narutozb/pysvnlite/blob/main/docs/maintenance-policy.md)、[安全报告](https://github.com/narutozb/pysvnlite/blob/main/SECURITY.md)
+- [Issue 填写例文](https://github.com/narutozb/pysvnlite/blob/main/docs/issue-examples.md)
 - [安装与升级](https://github.com/narutozb/pysvnlite/blob/main/docs/installation.md)
 - [使用示例](https://github.com/narutozb/pysvnlite/blob/main/docs/basic-usage.md)
 - [API 参考](https://github.com/narutozb/pysvnlite/blob/main/docs/api-reference.md)

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "安全报告 / Security"
+    url: https://github.com/narutozb/pysvnlite/blob/main/SECURITY.md
+    about: "查看私密报告流程；不要在公开 issue 提供漏洞细节或凭据。"
+  - name: "贡献与提交规范 / Contributing"
+    url: https://github.com/narutozb/pysvnlite/blob/main/CONTRIBUTING.md
+    about: "查看复现要求、项目范围、PR 与兼容性规则。"

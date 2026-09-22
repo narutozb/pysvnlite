@@ -3,9 +3,14 @@
 This repository owns only `src/pysvnlite`, an independent Subversion Python library.
 Keep runtime code and documentation scoped to this package.
 
+- Follow CONTRIBUTING.md, SECURITY.md and docs/maintenance-policy.md for issue
+  handling, compatibility, branches, tags and release decisions. Local fixes are
+  not published fixes.
 - Preserve Python >=3.9, existing API signatures and MIT attribution.
 - Use standard library facilities; avoid new runtime dependencies.
 - Keep SVN commands non-interactive and use XML for metadata, bytes for content.
+- Preserve native SVN semantics: do not guess revisions or encodings, broaden
+  selected targets, or split one atomic commit into multiple revisions.
 - Preserve structured SVNCommandError, credential redaction, atomic downloads,
   conflict guards, timeout and process-tree cleanup behavior.
 - Test writes only against temporary local SVN repositories, never production.
@@ -15,7 +20,8 @@ Keep runtime code and documentation scoped to this package.
 - src/pysvnlite/repo.py owns command construction; runner.py owns subprocesses;
   parser_*.py and models.py own parsing and structured results.
 - Tests use pytest; tests/conftest.py adds src to sys.path.
-- tests/test_documentation.py checks documentation links, Python snippet syntax,
+- tests/test_documentation.py includes contribution/security guides and PR
+  templates, and checks documentation links, Python snippet syntax,
   current README version, package scope, and API reference signatures/model fields
   against source.
 - Write concise, factual documentation. Avoid conversational or Q&A framing,
