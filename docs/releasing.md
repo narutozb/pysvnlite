@@ -1,5 +1,7 @@
 # 维护与发布
 
+版本选择、兼容承诺、分支与标签规则、issue 关闭时机见 [维护策略](maintenance-policy.md)。本页描述构建与上传操作，不替代维护者授权或 GitHub 分支保护。
+
 ## 开发环境
 
 在仓库根目录创建虚拟环境并安装开发依赖。以下命令使用 PowerShell：
@@ -35,7 +37,7 @@ python scripts/release_pypi.py
 
 `--allow-dirty` 和 `--skip-checks` 仅用于本地或 TestPyPI 检查，正式 PyPI 上传禁止使用。
 
-## TestPyPI
+## TestPyPI（可选）
 
 ```bash
 python scripts/release_pypi.py --upload --repository testpypi
@@ -53,11 +55,11 @@ python -c "from pysvnlite import SVNRepo"
 ## 正式 PyPI
 
 1. 更新 `pyproject.toml` 版本、CHANGELOG、README、安装示例和版本测试。
-2. 完成完整检查与 CI，提交到 main，保持工作区干净。
+2. 完成完整检查与 CI，通过 PR 合入 main（或维护策略中登记的维护分支），保持工作区干净。
 3. 创建带注释的版本标签并原样推送到 origin。
 4. 上传后从正式 PyPI 无缓存安装，检查导入和文件哈希。
 
-以下命令读取 `pyproject.toml` 中的待发布版本。Windows 使用 UTF-8 输出，避免进度条字符编码错误：
+以下命令读取 `pyproject.toml` 中的待发布版本；先确认它是尚未使用的新版本，不要对历史发布重复执行。Windows 使用 UTF-8 输出，避免进度条字符编码错误：
 
 ```powershell
 $env:PYTHONUTF8 = "1"
@@ -68,8 +70,10 @@ git push origin "v$version"
 python scripts/release_pypi.py --upload --repository pypi --confirm-version $version
 ```
 
-脚本验证本地与远端 tag 对象一致且指向 HEAD。带 `--upload` 时，检查通过即上传。
+每一步成功并核对结果后再执行下一步。脚本验证本地与远端 tag 对象一致且指向 HEAD。带 `--upload` 时会重新构建，检查通过即上传；使用该次上传文件的哈希核验 PyPI，并在新环境无缓存安装精确版本、运行 `pip check` 和公共 API 导入。
 已发布标签和同名同版本文件不可覆盖；后续改动使用新版本。
+
+推送标签不会自动创建 GitHub Release；上传失败或中断时先核对部分发布状态，按维护策略处理，不能直接重跑覆盖。
 
 Twine 凭据使用隐藏输入、`TWINE_PASSWORD` 或预先配置的 Trusted Publishing；token 不进入命令参数、Git 或日志。现有 CI 仅检查，不自动发布。
 

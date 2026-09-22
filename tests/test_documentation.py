@@ -11,9 +11,18 @@ from scripts.release_pypi import read_project_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCUMENTS = sorted(
-    [path for name in ("README.md", "CHANGELOG.md", "ROADMAP.md") if (path := ROOT / name).exists()]
+    [
+        path for name in ("README.md", "CHANGELOG.md", "ROADMAP.md", "CONTRIBUTING.md", "SECURITY.md")
+        if (path := ROOT / name).exists()
+    ]
     + list((ROOT / "docs").rglob("*.md"))
+    + list((ROOT / ".github").rglob("*.md"))
 )
+PUBLIC_TEXT = sorted(set(
+    DOCUMENTS
+    + list((ROOT / ".github").rglob("*.yml"))
+    + list((ROOT / ".github").rglob("*.yaml"))
+))
 FENCES = re.compile(r"^```([^\n]*)\n(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
 LINKS = re.compile(r"\[[^\]\n]+\]\(([^)\s]+)\)")
 
@@ -53,6 +62,14 @@ def test_readme_current_version_matches_metadata() -> None:
 )
 def test_documentation_stays_scoped_to_package(document: Path) -> None:
     assert "svnpypi" not in document.read_text(encoding="utf-8").casefold()
+
+
+@pytest.mark.parametrize("document", PUBLIC_TEXT, ids=lambda path: path.relative_to(ROOT).as_posix())
+def test_public_documentation_uses_tool_neutral_language(document: Path) -> None:
+    content = document.read_text(encoding="utf-8").casefold()
+    for name in ("codex", "chatgpt", "copilot", "openai", "claude"):
+        assert name not in content, f"{document.relative_to(ROOT)}: tool-specific wording"
+    assert not re.search(r"\b(?:ai|skills?)\b", content)
 
 
 def test_api_reference_signatures_match_source() -> None:

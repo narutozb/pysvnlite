@@ -1,0 +1,44 @@
+name: "需求 / Enhancement"
+description: "通用、兼容且可验证的能力建议"
+title: "[Enhancement] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        范围见 [贡献指南](https://github.com/narutozb/pysvnlite/blob/main/CONTRIBUTING.md)，格式见 [填写例文](https://github.com/narutozb/pysvnlite/blob/main/docs/issue-examples.md)。
+  - type: textarea
+    id: use_case
+    attributes:
+      label: "使用场景与现有限制"
+      description: "场景、精确版本与来源、现有方式的不足。源码补充 SHA 与未提交修改情况。"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "建议范围与替代方案"
+      description: "说明对多个使用者的价值、最小接口、现有绕行和明确不包含的能力。"
+    validations:
+      required: true
+  - type: textarea
+    id: semantics
+    attributes:
+      label: "兼容性与 SVN 原生规则"
+      description: "列出默认行为、目标/修订/权限/原子性的影响、原生依据、新依赖及维护成本。未知处注明待验证。"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "验收方式"
+      description: "给出可用临时数据验证的成功条件和失败边界；不能要求生产凭据。"
+    validations:
+      required: true
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: "提交前检查"
+      options:
+        - label: "已检索类似需求；未在内容中包含凭据或私人资产。"
+          required: true

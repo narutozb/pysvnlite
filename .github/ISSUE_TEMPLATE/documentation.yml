@@ -1,0 +1,30 @@
+name: "文档 / Documentation"
+description: "文档错误、缺失说明或使用问题"
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        支持中文或英文。日志和配置须脱敏；安全问题请查看 [SECURITY.md](https://github.com/narutozb/pysvnlite/blob/main/SECURITY.md)。
+  - type: input
+    id: location
+    attributes:
+      label: "页面与版本"
+      placeholder: "文档路径或固定提交链接；精确版本/标签及完整提交 SHA，不仅填写 main"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: "错误、缺失或使用问题"
+      description: "说明无法理解或与实际行为不符的内容；不要把尚未验证的推测写成事实。"
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: "建议与依据"
+      description: "可提供建议文字、实际输出或官方资料；没有确定方案时说明待确认事项。"
+    validations:
+      required: true
