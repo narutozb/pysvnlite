@@ -115,6 +115,7 @@ class StatusItem:
     commit_rev: Optional[int]             # 最后一次提交 rev（来自 <commit revision=...>）
     commit_author: Optional[str]          # 最后一次提交作者
     commit_date: Optional["datetime"]     # 最后一次提交时间（aware, UTC）
+    props_status: Optional[str] = None    # wc-status/@props; absent in older XML
 
 
 @dataclass

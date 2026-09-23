@@ -1,6 +1,8 @@
 # API 参考
 
-pysvnlite 0.2.3 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
+当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
+
+本文的新增能力和行为修正尚未发布，正式包请查阅对应发行标签的文档。
 
 ## 调用约定
 
@@ -25,6 +27,8 @@ pysvnlite 0.2.3 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/
 `commit` 的冲突阻断、自动清理失败或原生提交非零返回可能产生 `CommitResult(success=False)`；前置 status、add 或进程启动失败可能抛出异常。调用方需同时检查结果和异常。
 
 显式 `paths` 的状态摘要与自动准备仅针对所选目标，不扩大到父目录；空列表使用实例目标。自动准备递归处理所选子树，`depth` 只限制最终提交。准备造成的工作副本修改不会自动回滚，浅层提交使用显式 add/delete 清单。
+
+`fail_on_conflicts=True` 在准备操作前阻断内容、属性及树冲突；`CommitSummary.conflicted` 包含内容或属性冲突，树冲突仍单独记录。`StatusItem.wc_status` 保留原生内容状态，不用属性冲突覆盖它。
 
 `revision=None` 可能表示没有新提交或未解析出修订号。提交后的日志补查失败时 `changed_paths` 可为空；审计数据需另行核对 SVN。
 
@@ -293,7 +297,9 @@ export(dest: Union[str, Path], src: Union[str, Path] | None=None, *, revision: O
 
 ### StatusItem
 
-字段：`path`、`wc_status`、`repos_status`、`locked`、`switched`、`copied`、`tree_conflicted`、`revision`、`commit_rev`、`commit_author`、`commit_date`。
+字段：`path`、`wc_status`、`repos_status`、`locked`、`switched`、`copied`、`tree_conflicted`、`revision`、`commit_rev`、`commit_author`、`commit_date`、`props_status`。
+
+`props_status` 对应原生 `wc-status/@props`，缺少该属性时为 None，旧的位置参数构造方式不变。仅属性冲突时可同时出现 wc_status="normal" 与 props_status="conflicted"。
 
 ### ListEntry
 

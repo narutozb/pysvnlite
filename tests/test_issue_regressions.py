@@ -8,6 +8,7 @@ import pytest
 
 from pysvnlite import SVNOutputLimitError, SVNRepo
 from pysvnlite.repo import _parse_commit_revision, _with_peg
+from pysvnlite.parser_status import parse_status_xml
 
 
 @pytest.mark.parametrize(
@@ -233,3 +234,51 @@ def test_unknown_commit_revision_does_not_query_unrelated_history(
     assert result.success
     assert result.revision is None
     assert result.changed_paths == []
+
+
+@pytest.mark.parametrize("props", [None, "none", "normal", "modified", "conflicted"])
+def test_status_retains_property_state_without_replacing_content_state(props) -> None:
+    prop_attr = f' props="{props}"' if props is not None else ""
+    items = parse_status_xml(
+        '<status><target path="wc"><entry path="wc/asset">'
+        f'<wc-status item="normal"{prop_attr}/></entry></target></status>'
+    )
+    assert items[0].wc_status == "normal"
+    assert items[0].props_status == props
+    assert not items[0].tree_conflicted
+
+
+@pytest.mark.parametrize("selected_paths", [False, True])
+def test_property_conflict_blocks_commit_before_any_mutation(
+    working_copy: Path, monkeypatch, selected_paths: bool,
+) -> None:
+    path = working_copy / "asset.txt"
+    repo = SVNRepo(working_copy, timeout=15)
+    repo.propset("asset:test", "original", path)
+    assert repo.commit(message="original property").success
+    url = repo.info().url
+    second = SVNRepo.checkout(url, working_copy.parent / "second", timeout=15)
+    second.propset("asset:test", "remote", Path(second.target) / path.name)
+    assert second.commit(message="remote property").success
+    repo.propset("asset:test", "local", path)
+    _svn("update", "--accept", "postpone", str(working_copy))
+    item = SVNRepo(path, timeout=15).status()[0]
+    assert item.wc_status == "normal"
+    assert item.props_status == "conflicted"
+    (working_copy / "new.txt").write_bytes(b"unversioned")
+    (working_copy / "database/wanted/missing.txt").unlink()
+
+    def fail_mutation(*args, **kwargs):
+        pytest.fail("Property conflict must block preparation and commit")
+
+    monkeypatch.setattr(repo, "_run_result", fail_mutation)
+    monkeypatch.setattr(repo, "add", fail_mutation)
+    monkeypatch.setattr(repo, "delete", fail_mutation)
+    monkeypatch.setattr(repo, "revert", fail_mutation)
+    result = repo.commit(
+        message="blocked", paths=[path] if selected_paths else None,
+        add_unversioned=True, auto_delete_missing=True,
+    )
+    assert not result.success
+    assert [Path(value) for value in result.pre_summary.conflicted] == [path]
+    assert result.revision is None
