@@ -10,6 +10,7 @@
 - `checkout` 为静态方法，`target` / `timeout` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
 - `revision` 指定内容修订，`peg` 定位历史对象。`peg` 参数和 `@` 消歧仅适用于支持它们的方法。
 - 读取方法的 `Path` 输入始终按字面路径处理。字符串末尾 `@` 保留旧的空 peg 语义；末尾字面量 `@` 使用 `peg=""` 或具体修订消歧。
+- `status()` 不接受历史 peg；字面量 `@` 路径使用 `Path`，字符串末尾 `@` 仍表示原生空 peg。它只添加必要的空 peg 转义，不猜测修订或改查父目录。
 - URL `mkdir/delete` 必须且只能提供 message 或 message_file，并立即提交；工作副本形式不接受提交信息，只调度本地变更。
 - URL `copy/move` 返回 CommitResult；工作副本操作返回 None。多次方法调用不组成事务。
 - `cat` / `diff` 返回 bytes；`cat_to_file` 原子替换成功结果。list 的 ignore_externals 参数保留兼容，但不会传给原生 SVN。

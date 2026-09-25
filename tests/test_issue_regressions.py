@@ -282,3 +282,35 @@ def test_property_conflict_blocks_commit_before_any_mutation(
     assert not result.success
     assert [Path(value) for value in result.pre_summary.conflicted] == [path]
     assert result.revision is None
+
+
+@pytest.mark.parametrize("name", ["asset.txt", "asset.txt@", "asset.txt@@", "dir@/correct.txt"])
+def test_status_reads_literal_path_through_lifecycle(working_copy: Path, name: str) -> None:
+    path = working_copy / name
+    repo = SVNRepo(path, timeout=15)
+    assert repo.status() == []
+    path.write_bytes(b"modified requested file\n")
+    items = repo.status()
+    assert [(Path(item.path), item.wc_status) for item in items] == [(path, "modified")]
+    _svn("revert", str(path) + "@")
+    assert repo.status() == []
+
+    new_path = path.with_name("new@" + path.name)
+    new_path.write_bytes(b"new\n")
+    new_repo = SVNRepo(new_path, timeout=15)
+    assert new_repo.status()[0].wc_status == "unversioned"
+    _svn("add", str(new_path) + "@")
+    assert new_repo.status()[0].wc_status == "added"
+    _svn("commit", str(new_path) + "@", "-m", "new path")
+    assert new_repo.status() == []
+    assert SVNRepo(str(new_path) + "@", timeout=15).status() == []
+
+
+def test_status_trailing_empty_peg_string_keeps_legacy_target(working_copy: Path) -> None:
+    original = working_copy / "asset.txt"
+    literal = working_copy / "asset.txt@"
+    literal.write_bytes(b"literal modified\n")
+    assert SVNRepo(str(literal), timeout=15).status() == []
+    items = SVNRepo(literal, timeout=15).status()
+    assert Path(items[0].path) == literal
+    assert SVNRepo(original, timeout=15).status() == []
