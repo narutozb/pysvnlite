@@ -287,7 +287,7 @@ class SVNRepo:
             args.append("-u")
         if ignore_externals:
             args.append("--ignore-externals")
-        args.append(self._target)
+        args.append(_with_peg(self._read_target, None))
         xml_out = self._run(args)
         return parse_status_xml(xml_out)
 
