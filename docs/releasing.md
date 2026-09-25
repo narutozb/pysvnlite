@@ -46,7 +46,7 @@ python scripts/release_pypi.py --upload --repository testpypi
 使用 TestPyPI 专用 token。验证环境使用该索引安装待发布版本并检查实际导入：
 
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ --no-deps "pysvnlite==0.2.3"
+python -m pip install --index-url https://test.pypi.org/simple/ --no-deps "pysvnlite==0.2.4"
 python -c "from pysvnlite import SVNRepo"
 ```
 

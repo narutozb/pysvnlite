@@ -1,8 +1,6 @@
 # API 参考
 
-当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
-
-本文的新增能力和行为修正尚未发布，正式包请查阅对应发行标签的文档。
+pysvnlite 0.2.4 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
 ## 调用约定
 

@@ -111,6 +111,7 @@ historical = repo.cat(url, revision=120, peg=120)
 ```
 
 0.2.3 起修复了末尾字面量 `@` 的 `Path` 输入，包括 `SVNRepo(Path(...))` 的默认读取目标。
+`status()` 从 0.2.4 起使用同一字面路径规则；不支持历史 peg 查询，字符串末尾 `@` 保留空 peg 语义。
 字符串兼容旧的末尾空 peg 写法；原始字符串或 URL 本身以 `@` 结尾时，显式传入 `peg=""` 或数字修订：
 
 ```python
