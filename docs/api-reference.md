@@ -29,6 +29,8 @@
 
 显式 `paths` 的状态摘要与自动准备仅针对所选目标，不扩大到父目录；空列表使用实例目标。自动准备递归处理所选子树，`depth` 只限制最终提交。准备造成的工作副本修改不会自动回滚，浅层提交使用显式 add/delete 清单。
 
+`fail_on_conflicts=True` 在准备操作前阻断内容、属性及树冲突；`CommitSummary.conflicted` 包含内容或属性冲突，树冲突仍单独记录。`StatusItem.wc_status` 保留原生内容状态，不用属性冲突覆盖它。
+
 `revision=None` 可能表示没有新提交或未解析出修订号。提交后的日志补查失败时 `changed_paths` 可为空；审计数据需另行核对 SVN。
 
 版本解析仅接受完整的已知提交完成行。不从进度行猜测数字，也不以提交后查询到的 HEAD 代替本次修订，以免并发提交串号。
@@ -296,7 +298,9 @@ export(dest: Union[str, Path], src: Union[str, Path] | None=None, *, revision: O
 
 ### StatusItem
 
-字段：`path`、`wc_status`、`repos_status`、`locked`、`switched`、`copied`、`tree_conflicted`、`revision`、`commit_rev`、`commit_author`、`commit_date`。
+字段：`path`、`wc_status`、`repos_status`、`locked`、`switched`、`copied`、`tree_conflicted`、`revision`、`commit_rev`、`commit_author`、`commit_date`、`props_status`。
+
+`props_status` 对应原生 `wc-status/@props`，缺少该属性时为 None，旧的位置参数构造方式不变。仅属性冲突时可同时出现 wc_status="normal" 与 props_status="conflicted"。
 
 ### ListEntry
 
