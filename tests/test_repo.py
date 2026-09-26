@@ -102,7 +102,7 @@ def test_repository_url_mkdir_accepts_message(monkeypatch) -> None:
                 "create asset directory",
                 "svn://repo/assets/fbx",
             ],
-            {"timeout": 4},
+            {"timeout": 4, "hide_window": False},
         )
     ]
 
@@ -132,7 +132,7 @@ def test_repository_url_delete_accepts_message_file(monkeypatch, tmp_path: Path)
                 str(message_file),
                 "svn://repo/assets/fbx",
             ],
-            {"timeout": None},
+            {"timeout": None, "hide_window": False},
         )
     ]
 
@@ -221,6 +221,7 @@ def test_log_supports_history_options_and_timeout(monkeypatch) -> None:
                 "timeout": 2.5,
                 "max_output_bytes": None,
                 "spool_dir": None,
+                "hide_window": False,
             },
         )
     ]
@@ -263,16 +264,16 @@ def test_read_operations_support_peg_revision(monkeypatch, tmp_path: Path) -> No
     assert repo.diff(target, revision=4, revision_to=2, peg=4) == b"content"
 
     assert text_calls == [
-        (["info", "--xml", "-r", "4", f"{target}@4"], {"timeout": 3}),
-        (["list", "--xml", "-r", "4", f"{target}@4"], {"timeout": 3}),
-        (["blame", "--xml", "-r", "4:1", f"{target}@4"], {"timeout": 3}),
+        (["info", "--xml", "-r", "4", f"{target}@4"], {"timeout": 3, "hide_window": False}),
+        (["list", "--xml", "-r", "4", f"{target}@4"], {"timeout": 3, "hide_window": False}),
+        (["blame", "--xml", "-r", "4:1", f"{target}@4"], {"timeout": 3, "hide_window": False}),
     ]
     assert bytes_calls == [
-        (["cat", "-r", "4", f"{target}@4"], {"timeout": 3}),
-        (["diff", "-r", "4:2", f"{target}@4"], {"timeout": 3}),
+        (["cat", "-r", "4", f"{target}@4"], {"timeout": 3, "hide_window": False}),
+        (["diff", "-r", "4:2", f"{target}@4"], {"timeout": 3, "hide_window": False}),
     ]
     assert file_calls == [
-        (["cat", "-r", "4", f"{target}@4"], output_path, {"timeout": 3})
+        (["cat", "-r", "4", f"{target}@4"], output_path, {"timeout": 3, "hide_window": False})
     ]
 
 
@@ -396,6 +397,7 @@ def test_iter_log_events_exposes_path_stream_and_releases_spool_on_close(
                 "timeout": 3,
                 "max_output_bytes": 4096,
                 "spool_dir": tmp_path,
+                "hide_window": False,
             },
         )
     ]
@@ -476,4 +478,4 @@ def test_timeout_applies_to_working_copy_operations(monkeypatch) -> None:
     repo.update()
 
     assert repo.timeout == 4
-    assert calls == [(["update", "working-copy"], {"timeout": 4})]
+    assert calls == [(["update", "working-copy"], {"timeout": 4, "hide_window": False})]

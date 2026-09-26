@@ -1,13 +1,16 @@
 # API 参考
 
-pysvnlite 0.2.3 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
+当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
+
+本文的新增能力和行为修正尚未发布，正式包请查阅对应发行标签的文档。
 
 ## 调用约定
 
 - 构造函数保存目标路径或 URL，不执行检出。方法默认使用实例 `target`；显式相对路径通常以进程工作目录为基准，绝对路径不受工作目录影响。
-- `checkout` 为静态方法，`target` / `timeout` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
+- `checkout` 为静态方法，`target` / `timeout` / `hide_window` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
 - `revision` 指定内容修订，`peg` 定位历史对象。`peg` 参数和 `@` 消歧仅适用于支持它们的方法。
 - 读取方法的 `Path` 输入始终按字面路径处理。字符串末尾 `@` 保留旧的空 peg 语义；末尾字面量 `@` 使用 `peg=""` 或具体修订消歧。
+- `hide_window=False` 保留原有进程行为；显式 True 只在 Windows 设置无窗口标志，不改变 SVN 参数、认证、输出或超时策略。checkout 的选项也保留在返回实例中，详见 [Windows 窗口策略](windows-paths.md#子进程窗口)。
 - URL `mkdir/delete` 必须且只能提供 message 或 message_file，并立即提交；工作副本形式不接受提交信息，只调度本地变更。
 - URL `copy/move` 返回 CommitResult；工作副本操作返回 None。多次方法调用不组成事务。
 - `cat` / `diff` 返回 bytes；`cat_to_file` 原子替换成功结果。list 的 ignore_externals 参数保留兼容，但不会传给原生 SVN。
@@ -56,7 +59,7 @@ print(result.revision)
 ### SVNRepo.__init__
 
 ```text
-__init__(target: Union[str, Path], *, timeout: Optional[float]=None)
+__init__(target: Union[str, Path], *, timeout: Optional[float]=None, hide_window: bool=False)
 ```
 
 ### SVNRepo.target
@@ -73,6 +76,14 @@ target() -> str
 
 ```text
 timeout() -> Optional[float]
+```
+
+### SVNRepo.hide_window
+
+只读属性，使用 `repo.hide_window`，不调用。
+
+```text
+hide_window() -> bool
 ```
 
 ### SVNRepo.info
@@ -132,7 +143,7 @@ changed_files_of_commit(revision: int, *, max_output_bytes: Optional[int]=None, 
 ### SVNRepo.checkout
 
 ```text
-checkout(url: Union[str, Path], dest: Union[str, Path], revision: Optional[int]=None, *, timeout: Optional[float]=None) -> 'SVNRepo'
+checkout(url: Union[str, Path], dest: Union[str, Path], revision: Optional[int]=None, *, timeout: Optional[float]=None, hide_window: bool=False) -> 'SVNRepo'
 ```
 
 ### SVNRepo.update
