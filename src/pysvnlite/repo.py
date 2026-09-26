@@ -48,10 +48,14 @@ def _decode_process_output(value: object) -> str:
     return str(value)
 
 
-def _run_svn_result(args: List[str], timeout: Optional[float] = None) -> CompletedProcess[str]:
+def _run_svn_result(
+    args: List[str], timeout: Optional[float] = None, *, hide_window: bool = False,
+) -> CompletedProcess[str]:
     full_cmd = ["svn", "--non-interactive"] + args
     try:
-        stdout, stderr = _run_captured(full_cmd, cwd=None, timeout=timeout)
+        stdout, stderr = _run_captured(
+            full_cmd, cwd=None, timeout=timeout, hide_window=hide_window,
+        )
     except SVNCommandError as error:
         if error.returncode < 0:
             raise
@@ -125,11 +129,15 @@ def _summarize_status(items: List[StatusItem]) -> CommitSummary:
 class SVNRepo:
     CAPABILITIES = CAPABILITIES
 
-    def __init__(self, target: Union[str, Path], *, timeout: Optional[float] = None):
+    def __init__(
+        self, target: Union[str, Path], *, timeout: Optional[float] = None,
+        hide_window: bool = False,
+    ):
         self._target = str(target)
         # Preserve Path semantics for literal trailing @ in read operations.
         self._read_target = target
         self._timeout = timeout
+        self._hide_window = hide_window
 
     @property
     def target(self) -> str:
@@ -139,13 +147,20 @@ class SVNRepo:
     def timeout(self) -> Optional[float]:
         return self._timeout
 
+    @property
+    def hide_window(self) -> bool:
+        return self._hide_window
+
     def _run(self, args: List[str]) -> str:
-        return run_svn(args, timeout=self._timeout)
+        return run_svn(args, timeout=self._timeout, hide_window=self._hide_window)
 
     def _run_bytes(self, args: List[str], *, max_output_bytes: Optional[int] = None) -> bytes:
         if max_output_bytes is not None:
-            return run_svn_bytes(args, timeout=self._timeout, max_output_bytes=max_output_bytes)
-        return run_svn_bytes(args, timeout=self._timeout)
+            return run_svn_bytes(
+                args, timeout=self._timeout, max_output_bytes=max_output_bytes,
+                hide_window=self._hide_window,
+            )
+        return run_svn_bytes(args, timeout=self._timeout, hide_window=self._hide_window)
 
     def _run_to_file(
         self, args: List[str], output_path: Union[str, Path],
@@ -154,12 +169,13 @@ class SVNRepo:
         if max_output_bytes is not None:
             run_svn_to_file(
                 args, output_path, timeout=self._timeout, max_output_bytes=max_output_bytes,
+                hide_window=self._hide_window,
             )
             return
-        run_svn_to_file(args, output_path, timeout=self._timeout)
+        run_svn_to_file(args, output_path, timeout=self._timeout, hide_window=self._hide_window)
 
     def _run_result(self, args: List[str]) -> CompletedProcess[str]:
-        return _run_svn_result(args, timeout=self._timeout)
+        return _run_svn_result(args, timeout=self._timeout, hide_window=self._hide_window)
 
     def _log_args(
         self,
@@ -244,6 +260,7 @@ class SVNRepo:
             timeout=self._timeout,
             max_output_bytes=max_output_bytes,
             spool_dir=spool_dir,
+            hide_window=self._hide_window,
         ) as xml_stream:
             yield from iter_log_xml(xml_stream)
 
@@ -270,6 +287,7 @@ class SVNRepo:
             timeout=self._timeout,
             max_output_bytes=max_output_bytes,
             spool_dir=spool_dir,
+            hide_window=self._hide_window,
         ) as xml_stream:
             yield from iter_log_xml_events(xml_stream)
 
@@ -378,14 +396,15 @@ class SVNRepo:
         revision: Optional[int] = None,
         *,
         timeout: Optional[float] = None,
+        hide_window: bool = False,
     ) -> "SVNRepo":
         args = ["checkout"]
         if revision is not None:
             args += ["--revision", str(revision)]
         args += [str(url), str(dest)]
-        output = run_svn(args, timeout=timeout)
+        output = run_svn(args, timeout=timeout, hide_window=hide_window)
         _verify_checkout_path(Path(dest), ["svn", "--non-interactive"] + args, output)
-        return SVNRepo(dest, timeout=timeout)
+        return SVNRepo(dest, timeout=timeout, hide_window=hide_window)
 
     def update(self, revision: Optional[int] = None) -> None:
         args = ["update"]
@@ -734,7 +753,7 @@ class SVNRepo:
             # Query each selected target; never schedule siblings from self.target.
             items: Dict[str, StatusItem] = {}
             for target in commit_targets:
-                scoped = SVNRepo(target, timeout=self._timeout)
+                scoped = SVNRepo(target, timeout=self._timeout, hide_window=self._hide_window)
                 for item in scoped.status(depth="infinity", ignore_externals=True):
                     key = os.path.normcase(os.path.abspath(item.path))
                     items[key] = item
