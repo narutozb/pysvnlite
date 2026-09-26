@@ -44,6 +44,14 @@ Windows 启用时使用 CREATE_NO_WINDOW 与原有 CREATE_NEW_PROCESS_GROUP 的�
 
 ## 路径配置
 
+仓库提供独立的 [临时仓库诊断脚本](../tests/fixtures/windows_encoding_diagnostic.py)，比较相同目标的原生 XML、diff 原始字节与库返回值，并记录 ACP/OEM、客户端和实际导入来源：
+
+```powershell
+python -I tests/fixtures/windows_encoding_diagnostic.py
+```
+
+需已安装待验证的包、`svn`、`svnadmin`，以及可写的 ASCII 临时目录。脚本不覆盖源码导入路径，只在临时仓库内写入测试文件；不修改系统编码、现有工作副本或真实仓库。输出为观察记录，不把某个客户端通过解释为所有客户端已修复。标题字节以十六进制保留，不猜测其编码。
+
 受影响客户端的工作副本及其父目录使用 ASCII 路径。需要临时目录的程序将 `TEMP` / `TMP` 指向已有且可写的 ASCII 目录。URL 中的非 ASCII 路径段使用百分号编码；URL 编码与本地路径转换分别处理。
 
 更换客户端后，使用临时仓库检查目标路径及 `info`、`status`、`add`、`commit`、`update` 的结果。上述实测范围不覆盖其他 Windows locale、客户端构建或远端认证方式。
