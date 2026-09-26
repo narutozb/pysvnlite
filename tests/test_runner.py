@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import faulthandler
 import io
 import os
 import signal
@@ -427,15 +428,30 @@ def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
         "sys.stdout.buffer.write(b'partial'); sys.stdout.buffer.flush(); "
         "time.sleep(30)"
     )
+    phases = []
 
     def launch_helper(cmd, **kwargs):
-        return real_popen([sys.executable, "-c", helper_script], **kwargs)
+        before = time.monotonic()
+        proc = real_popen([sys.executable, "-c", helper_script], **kwargs)
+        phases.append(("spawn", time.monotonic() - before))
+        communicate = proc.communicate
+
+        def timed_communicate(*args, **options):
+            before = time.monotonic()
+            try:
+                return communicate(*args, **options)
+            finally:
+                phases.append(("communicate", options, time.monotonic() - before))
+
+        proc.communicate = timed_communicate
+        return proc
 
     monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", launch_helper)
     started = time.monotonic()
     grandchild_pid = None
     destination = tmp_path / "artifact.bin"
     destination.write_bytes(b"existing artifact")
+    faulthandler.dump_traceback_later(5)
     try:
         with pytest.raises(SVNCommandError) as exc_info:
             if kind == "spooled":
@@ -449,12 +465,12 @@ def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
                 run_svn_bytes(["cat"], timeout=1, max_output_bytes=100, hide_window=hide_window)
             elif kind == "commit_result":
                 result = _run_svn_result(["commit"], timeout=1, hide_window=hide_window)
-                pytest.fail(f"Expected a timeout; subprocess returned {result!r}")
+                pytest.fail(f"Expected a timeout; subprocess returned {result!r}; phases={phases!r}")
             else:
                 (run_svn if kind == "text" else run_svn_bytes)(["log"], timeout=1, hide_window=hide_window)
 
         assert exc_info.value.category == "timeout"
-        assert time.monotonic() - started < 5
+        assert time.monotonic() - started < 5, phases
         assert grandchild_pid_path.exists()
         grandchild_pid = int(grandchild_pid_path.read_text())
         deadline = time.monotonic() + 2
@@ -464,6 +480,7 @@ def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
         assert destination.read_bytes() == b"existing artifact"
         assert not list(tmp_path.glob("*.part"))
     finally:
+        faulthandler.cancel_dump_traceback_later()
         if grandchild_pid is None and grandchild_pid_path.exists():
             grandchild_pid = int(grandchild_pid_path.read_text())
         if grandchild_pid is not None and _process_is_running(grandchild_pid):
