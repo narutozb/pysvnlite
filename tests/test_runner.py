@@ -192,11 +192,9 @@ def test_run_svn_to_file_wraps_process_start_failure(
     assert not output_path.exists()
 
 
-@pytest.mark.parametrize("hide_window", [False, True])
 def test_run_svn_to_file_kills_process_and_preserves_target_on_interrupt(
     monkeypatch,
     tmp_path: Path,
-    hide_window: bool,
 ) -> None:
     InterruptedPopen.killed = False
     InterruptedPopen.waited = False
@@ -205,7 +203,7 @@ def test_run_svn_to_file_kills_process_and_preserves_target_on_interrupt(
     output_path.write_bytes(b"existing artifact")
 
     with pytest.raises(KeyboardInterrupt):
-        run_svn_to_file(["cat", "svn://repo/artifact.whl"], output_path, hide_window=hide_window)
+        run_svn_to_file(["cat", "svn://repo/artifact.whl"], output_path)
 
     assert InterruptedPopen.killed is True
     assert InterruptedPopen.waited is True
@@ -293,10 +291,8 @@ def test_run_svn_spooled_accepts_exact_limit_and_uses_requested_directory(
     ]
 
 
-@pytest.mark.parametrize("hide_window", [False, True])
 def test_run_svn_spooled_raises_stable_limit_error_and_reaps_process(
     monkeypatch,
-    hide_window: bool,
 ) -> None:
     content = b"<log/>"
     SpoolPopen.stdout_bytes = content
@@ -309,7 +305,6 @@ def test_run_svn_spooled_raises_stable_limit_error_and_reaps_process(
         with run_svn_spooled(
             ["log", "--xml", "svn://repo"],
             max_output_bytes=len(content) - 1,
-            hide_window=hide_window,
         ):
             pass
 
@@ -321,15 +316,14 @@ def test_run_svn_spooled_raises_stable_limit_error_and_reaps_process(
     assert SpoolPopen.instances[0].waited is True
 
 
-@pytest.mark.parametrize("hide_window", [False, True])
-def test_run_svn_spooled_kills_and_waits_on_interrupt(monkeypatch, hide_window) -> None:
+def test_run_svn_spooled_kills_and_waits_on_interrupt(monkeypatch) -> None:
     InterruptingSpoolPopen.stdout_bytes = b""
     InterruptingSpoolPopen.stderr_bytes = b""
     InterruptingSpoolPopen.instances = []
     monkeypatch.setattr("pysvnlite.runner.subprocess.Popen", InterruptingSpoolPopen)
 
     with pytest.raises(KeyboardInterrupt):
-        with run_svn_spooled(["log", "--xml", "svn://repo"], hide_window=hide_window):
+        with run_svn_spooled(["log", "--xml", "svn://repo"]):
             pass
 
     assert InterruptingSpoolPopen.instances[0].killed is True
@@ -410,12 +404,10 @@ def _force_kill_process(pid: int) -> None:
 @pytest.mark.parametrize(
     "kind", ["text", "bytes", "file", "spooled", "commit_result", "bounded_bytes", "bounded_file"],
 )
-@pytest.mark.parametrize("hide_window", [False, True])
 def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
     monkeypatch,
     tmp_path: Path,
     kind: str,
-    hide_window: bool,
 ) -> None:
     real_popen = subprocess.Popen
     grandchild_pid_path = tmp_path / "grandchild.pid"
@@ -439,19 +431,18 @@ def test_all_runners_timeout_reaps_grandchild_inheriting_stdio(
     try:
         with pytest.raises(SVNCommandError) as exc_info:
             if kind == "spooled":
-                with run_svn_spooled(["log"], timeout=1, hide_window=hide_window):
+                with run_svn_spooled(["log"], timeout=1):
                     pass
             elif kind == "file":
-                run_svn_to_file(["cat"], destination, timeout=1, hide_window=hide_window)
+                run_svn_to_file(["cat"], destination, timeout=1)
             elif kind == "bounded_file":
-                run_svn_to_file(["cat"], destination, timeout=1, max_output_bytes=100, hide_window=hide_window)
+                run_svn_to_file(["cat"], destination, timeout=1, max_output_bytes=100)
             elif kind == "bounded_bytes":
-                run_svn_bytes(["cat"], timeout=1, max_output_bytes=100, hide_window=hide_window)
+                run_svn_bytes(["cat"], timeout=1, max_output_bytes=100)
             elif kind == "commit_result":
-                result = _run_svn_result(["commit"], timeout=1, hide_window=hide_window)
-                pytest.fail(f"Expected a timeout; subprocess returned {result!r}")
+                _run_svn_result(["commit"], timeout=1)
             else:
-                (run_svn if kind == "text" else run_svn_bytes)(["log"], timeout=1, hide_window=hide_window)
+                (run_svn if kind == "text" else run_svn_bytes)(["log"], timeout=1)
 
         assert exc_info.value.category == "timeout"
         assert time.monotonic() - started < 5

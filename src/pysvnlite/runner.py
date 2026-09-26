@@ -331,26 +331,19 @@ def _verify_checkout_path(path: Path, cmd: List[str], stdout: str) -> None:
         )
 
 
-def _creation_flags(hide_window: bool) -> int:
-    if os.name != "nt":
-        return 0
-    flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-    if hide_window:
-        flags |= int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    return flags
-
-
 def _run_captured(
     full_cmd: List[str], cwd: Optional[str], timeout: Optional[float],
     stdout: Union[int, IO[bytes]] = subprocess.PIPE,
-    *, hide_window: bool = False,
 ) -> tuple[Optional[bytes], bytes]:
     try:
         proc = subprocess.Popen(
             full_cmd, cwd=cwd, stdin=subprocess.DEVNULL,
             stdout=stdout, stderr=subprocess.PIPE,
             start_new_session=os.name == "posix",
-            creationflags=_creation_flags(hide_window),
+            creationflags=(
+                int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                if os.name == "nt" else 0
+            ),
         )
     except OSError as error:
         raise SVNProcessStartError(full_cmd, -1, "", str(error)) from error
@@ -382,7 +375,6 @@ def run_svn(
     args: List[str],
     cwd: Optional[str] = None,
     timeout: Optional[float] = None,
-    *, hide_window: bool = False,
 ) -> str:
     """
     运行 svn 子进程并返回 stdout(str)。
@@ -394,7 +386,7 @@ def run_svn(
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
-    output, _ = _run_captured(full_cmd, cwd, timeout, hide_window=hide_window)
+    output, _ = _run_captured(full_cmd, cwd, timeout)
     text = _decode_output(output).replace("\r\n", "\n").replace("\r", "\n")
     for checkout_path in _checkout_paths(args, cwd):
         _verify_checkout_path(checkout_path, full_cmd, text)
@@ -407,7 +399,6 @@ def run_svn_bytes(
     timeout: Optional[float] = None,
     *,
     max_output_bytes: Optional[int] = None,
-    hide_window: bool = False,
 ) -> bytes:
     """
     运行 svn 子进程并返回 stdout(bytes)。
@@ -416,14 +407,13 @@ def run_svn_bytes(
     if max_output_bytes is not None:
         with run_svn_spooled(
             args, cwd=cwd, timeout=timeout, max_output_bytes=max_output_bytes,
-            hide_window=hide_window,
         ) as stream:
             return stream.read()
 
     base_cmd = ["svn", "--non-interactive"]
     full_cmd = base_cmd + args
 
-    output, _ = _run_captured(full_cmd, cwd, timeout, hide_window=hide_window)
+    output, _ = _run_captured(full_cmd, cwd, timeout)
     return output or b""
 
 
@@ -434,7 +424,6 @@ def run_svn_spooled(
     timeout: Optional[float] = None,
     max_output_bytes: Optional[int] = None,
     spool_dir: Optional[Union[str, Path]] = None,
-    *, hide_window: bool = False,
 ) -> Iterator[IO[bytes]]:
     """
     运行 svn 并把 stdout 写入内存有界、可自动滚盘的二进制 spool。
@@ -463,7 +452,11 @@ def run_svn_spooled(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=os.name == "posix",
-                creationflags=_creation_flags(hide_window),
+                creationflags=(
+                    int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                    if os.name == "nt"
+                    else 0
+                ),
             )
         except OSError as error:
             raise SVNProcessStartError(full_cmd, -1, "", str(error)) from error
@@ -583,7 +576,6 @@ def run_svn_to_file(
     timeout: Optional[float] = None,
     *,
     max_output_bytes: Optional[int] = None,
-    hide_window: bool = False,
 ) -> None:
     """
     运行 svn 子进程并把 stdout 直接写入文件。
@@ -607,14 +599,11 @@ def run_svn_to_file(
             temp_path = Path(output_file.name)
             try:
                 if max_output_bytes is None:
-                    _run_captured(
-                        full_cmd, cwd, timeout, stdout=output_file, hide_window=hide_window,
-                    )
+                    _run_captured(full_cmd, cwd, timeout, stdout=output_file)
                 else:
                     with run_svn_spooled(
                         args, cwd=cwd, timeout=timeout,
                         max_output_bytes=max_output_bytes, spool_dir=destination.parent,
-                        hide_window=hide_window,
                     ) as stream:
                         shutil.copyfileobj(stream, output_file)
             except OSError as e:

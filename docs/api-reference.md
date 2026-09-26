@@ -2,15 +2,14 @@
 
 pysvnlite 0.2.5 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
-`hide_window`、修订属性写入的 `revision`、批量目标文件及启动错误分类从 0.2.5 起提供。
+修订属性写入的 `revision`、批量目标文件及启动错误分类从 0.2.5 起提供。
 
 ## 调用约定
 
 - 构造函数保存目标路径或 URL，不执行检出。方法默认使用实例 `target`；显式相对路径通常以进程工作目录为基准，绝对路径不受工作目录影响。
-- `checkout` 为静态方法，`target` / `timeout` / `hide_window` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
+- `checkout` 为静态方法，`target` / `timeout` 是只读属性。`CAPABILITIES` 包含 `bounded_verbose_log_v1`，也可通过 `SVNRepo.CAPABILITIES` 查询。
 - `revision` 指定内容修订，`peg` 定位历史对象。`peg` 参数和 `@` 消歧仅适用于支持它们的方法。
 - 读取方法的 `Path` 输入始终按字面路径处理。字符串末尾 `@` 保留旧的空 peg 语义；末尾字面量 `@` 使用 `peg=""` 或具体修订消歧。
-- `hide_window=False` 保留原有进程行为；显式 True 只在 Windows 设置无窗口标志，不改变 SVN 参数、认证、输出或超时策略。checkout 的选项也保留在返回实例中，详见 [Windows 窗口策略](windows-paths.md#子进程窗口)。
 - `propset` / `propdel` 的 `revprop=True` 必须显式提供 revision；普通属性写入不能提供 revision。数值、HEAD 或日期表达式原样交给 SVN 解析，不自动查询或补充修订。修改修订属性仍需仓库允许 `pre-revprop-change` 钩子，库不修改钩子或权限。
 - `status()` 不接受历史 peg；字面量 `@` 路径使用 `Path`，字符串末尾 `@` 仍表示原生空 peg。它只添加必要的空 peg 转义，不猜测修订或改查父目录。
 - URL `mkdir/delete` 必须且只能提供 message 或 message_file，并立即提交；工作副本形式不接受提交信息，只调度本地变更。
@@ -88,7 +87,7 @@ assert result.success, result.stderr
 ### SVNRepo.__init__
 
 ```text
-__init__(target: Union[str, Path], *, timeout: Optional[float]=None, hide_window: bool=False)
+__init__(target: Union[str, Path], *, timeout: Optional[float]=None)
 ```
 
 ### SVNRepo.target
@@ -105,14 +104,6 @@ target() -> str
 
 ```text
 timeout() -> Optional[float]
-```
-
-### SVNRepo.hide_window
-
-只读属性，使用 `repo.hide_window`，不调用。
-
-```text
-hide_window() -> bool
 ```
 
 ### SVNRepo.info
@@ -172,7 +163,7 @@ changed_files_of_commit(revision: int, *, max_output_bytes: Optional[int]=None, 
 ### SVNRepo.checkout
 
 ```text
-checkout(url: Union[str, Path], dest: Union[str, Path], revision: Optional[int]=None, *, timeout: Optional[float]=None, hide_window: bool=False) -> 'SVNRepo'
+checkout(url: Union[str, Path], dest: Union[str, Path], revision: Optional[int]=None, *, timeout: Optional[float]=None) -> 'SVNRepo'
 ```
 
 ### SVNRepo.update
