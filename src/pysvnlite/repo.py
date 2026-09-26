@@ -113,10 +113,10 @@ def _summarize_status(items: List[StatusItem]) -> CommitSummary:
             buck.deleted.append(it.path)
         elif s == "missing":
             buck.missing.append(it.path)
-        elif s == "conflicted":
-            buck.conflicted.append(it.path)
         elif s == "unversioned":
             buck.unversioned.append(it.path)
+        if s == "conflicted" or (it.props_status or "").lower() == "conflicted":
+            buck.conflicted.append(it.path)
         if it.tree_conflicted or s == "tree-conflicted":
             buck.tree_conflicted.append(it.path)
     return buck
@@ -287,7 +287,7 @@ class SVNRepo:
             args.append("-u")
         if ignore_externals:
             args.append("--ignore-externals")
-        args.append(self._target)
+        args.append(_with_peg(self._read_target, None))
         xml_out = self._run(args)
         return parse_status_xml(xml_out)
 
