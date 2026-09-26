@@ -2,14 +2,16 @@
 
 Python 的 Subversion 命令行封装与 XML 解析库，提供仓库查询、历史读取和工作副本管理 API。
 
-当前版本：**0.2.3**。Python >=3.9，无第三方运行时依赖，包含类型标记 `py.typed`。
+当前版本：**0.2.4**。Python >=3.9，无第三方运行时依赖，包含类型标记 `py.typed`。
+
+版本变化见[变更日志](https://github.com/narutozb/pysvnlite/blob/main/CHANGELOG.md)；main 分支可能包含尚未发布的修改，正式发行包以对应标签为准。
 
 ## 安装
 
 系统需安装 Subversion，并将 `svn` 加入 `PATH`。
 
 ```bash
-python -m pip install "pysvnlite==0.2.3"
+python -m pip install "pysvnlite==0.2.4"
 svn --version --quiet
 ```
 
