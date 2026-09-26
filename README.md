@@ -6,7 +6,7 @@ Python 的 Subversion 命令行封装与 XML 解析库，提供仓库查询、�
 
 版本变化见[变更日志](https://github.com/narutozb/pysvnlite/blob/main/CHANGELOG.md)；main 分支可能包含尚未发布的修改，正式发行包以对应标签为准。
 
-批量目标文件与原生编码约束见 [API 参考](docs/api-reference.md#批量目标)。
+批量目标文件与原生编码约束见 [API 参考](https://github.com/narutozb/pysvnlite/blob/main/docs/api-reference.md#批量目标)。
 
 ## 安装
 

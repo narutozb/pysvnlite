@@ -2,13 +2,7 @@
 
 ## 子进程窗口
 
-从 0.2.5 起提供 `hide_window=False`。GUI 宿主可显式使用 `SVNRepo(target, hide_window=True)`；静态 checkout 和 run_svn、run_svn_bytes、run_svn_spooled、run_svn_to_file 也接受同名关键字参数。
-
-Windows 启用时使用 CREATE_NO_WINDOW 与原有 CREATE_NEW_PROCESS_GROUP 的组合，保持非交互输入、输出捕获、超时和进程树清理。其他平台忽略窗口设置，默认 False 不改变既有行为。此选项不隐藏宿主自身的窗口，也不控制 SSH 客户端或其他外部程序的独立 GUI。
-
-测试包含 pythonw 无父控制台宿主的真实临时 SVN 操作及进程标志、输出、清理检查；UE、Photoshop 和 PyInstaller 的具体宿主行为仍需下游验收，不等同于全部桌面环境的人工闪窗验证。
-
-参考：[Microsoft 进程创建标志](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)。
+0.2.5 保留原有进程窗口行为，不提供 `hide_window` 参数。[Issue #11](https://github.com/narutozb/pysvnlite/issues/11) 的候选在发布预检中出现间歇性超时回归失败，尚未确认根因，因此不纳入本次正式包。GUI / 冻结程序兼容性仍待独立验收。
 
 ## 已知问题
 
