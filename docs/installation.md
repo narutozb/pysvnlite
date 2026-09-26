@@ -12,14 +12,14 @@ Windows PowerShell：
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install "pysvnlite==0.2.4"
+.\.venv\Scripts\python.exe -m pip install "pysvnlite==0.2.5"
 ```
 
 Linux / macOS：
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install "pysvnlite==0.2.4"
+.venv/bin/python -m pip install "pysvnlite==0.2.5"
 ```
 
 以下命令在已激活的虚拟环境中运行。
@@ -27,7 +27,7 @@ python3 -m venv .venv
 ## 升级
 
 ```bash
-python -m pip install --upgrade "pysvnlite==0.2.4"
+python -m pip install --upgrade "pysvnlite==0.2.5"
 ```
 
 ## 验证
@@ -47,13 +47,13 @@ SVN 认证、证书和 SSH agent 使用原生客户端配置。仓库 URL 和命
 联网环境下载 wheel：
 
 ```bash
-python -m pip download --only-binary=:all: --no-deps --dest wheelhouse "pysvnlite==0.2.4"
+python -m pip download --only-binary=:all: --no-deps --dest wheelhouse "pysvnlite==0.2.5"
 ```
 
 目标环境安装：
 
 ```bash
-python -m pip install --no-index --find-links wheelhouse "pysvnlite==0.2.4"
+python -m pip install --no-index --find-links wheelhouse "pysvnlite==0.2.5"
 ```
 
 Subversion 原生客户端需单独安装。开发和发布依赖见[维护与发布](releasing.md)，中文路径限制见 [Windows 路径兼容性](windows-paths.md)。
