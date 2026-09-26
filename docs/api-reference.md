@@ -1,8 +1,8 @@
 # API 参考
 
-当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
+pysvnlite 0.2.5 的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
-`hide_window`、修订属性写入的 `revision`、批量目标文件及启动错误分类尚未发布；正式包请查阅对应发行标签的文档。
+`hide_window`、修订属性写入的 `revision`、批量目标文件及启动错误分类从 0.2.5 起提供。
 
 ## 调用约定
 
