@@ -13,7 +13,7 @@ from .models import (
     RepoInfo,
     StatusItem,
 )
-from .exceptions import SVNCommandError, SVNOutputLimitError
+from .exceptions import SVNCommandError, SVNOutputLimitError, SVNProcessStartError
 
 __all__ = [
     "SVNRepo",
@@ -32,4 +32,5 @@ __all__ = [
     "BlameLine",
     "SVNCommandError",
     "SVNOutputLimitError",
+    "SVNProcessStartError",
 ]

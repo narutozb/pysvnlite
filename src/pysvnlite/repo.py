@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Sequence, Union
+from typing import Dict, Generator, Iterator, List, Optional, Sequence, Union
 
 from subprocess import CompletedProcess
 from urllib.parse import urlparse
@@ -38,6 +40,32 @@ _commit_rev_patterns = (
 )
 Revision = Union[int, str]
 CAPABILITIES = frozenset({"bounded_verbose_log_v1"})
+
+
+def _encode_targets(targets: Sequence[str], encoding: str) -> bytes:
+    # Native --targets splits lines and trims whitespace after locale conversion.
+    if "a\n".encode(encoding) != b"a\n":
+        raise ValueError("targets_encoding must be ASCII-compatible and must not add a BOM.")
+    for target in targets:
+        if not target or target != target.strip() or any(c in target for c in "\r\n\0"):
+            raise ValueError("Target files cannot preserve empty, padded, or multiline targets.")
+    text = "\n".join(targets) + "\n"
+    data = text.encode(encoding, errors="strict")
+    if data.decode(encoding, errors="strict") != text:
+        raise ValueError("targets_encoding must preserve every target exactly.")
+    return data
+
+
+@contextmanager
+def _target_arguments(targets: List[str], encoding: Optional[str]) -> Iterator[List[str]]:
+    if encoding is None:
+        yield targets
+        return
+    data = _encode_targets(targets, encoding)
+    with tempfile.TemporaryDirectory(prefix="pysvnlite-targets-") as directory:
+        path = Path(directory) / "targets.txt"
+        path.write_bytes(data)
+        yield ["--targets", str(path)]
 
 
 def _decode_process_output(value: object) -> str:
@@ -450,6 +478,7 @@ class SVNRepo:
         no_ignore: bool = False,
         # "empty"|"files"|"immediates"|"infinity"
         depth: Optional[str] = None,
+        targets_encoding: Optional[str] = None,
     ) -> None:
         """
         等价 `svn add [--force] [--no-ignore] [--depth X] <paths...>`
@@ -464,8 +493,8 @@ class SVNRepo:
             args.append("--no-ignore")
         if depth:
             args += ["--depth", depth]
-        args += targets
-        _ = self._run(args)
+        with _target_arguments(targets, targets_encoding) as target_args:
+            _ = self._run(args + target_args)
 
     def revert(
         self,
@@ -473,6 +502,7 @@ class SVNRepo:
         *,
         depth: Optional[str] = None,
         include_parents: bool = False,
+        targets_encoding: Optional[str] = None,
     ) -> None:
         if not paths:
             return
@@ -481,8 +511,8 @@ class SVNRepo:
             args += ["--depth", depth]
         if include_parents:
             args.append("--include-parents")
-        args += [str(p) for p in paths]
-        _ = self._run(args)
+        with _target_arguments([str(p) for p in paths], targets_encoding) as target_args:
+            _ = self._run(args + target_args)
 
     def delete(
         self,
@@ -492,6 +522,7 @@ class SVNRepo:
         keep_local: bool = False,
         message: Optional[str] = None,
         message_file: Optional[Union[str, Path]] = None,
+        targets_encoding: Optional[str] = None,
     ) -> None:
         if not paths:
             return
@@ -518,8 +549,8 @@ class SVNRepo:
             args += ["-m", message]
         elif message_file is not None:
             args += ["-F", str(message_file)]
-        args += targets
-        _ = self._run(args)
+        with _target_arguments(targets, targets_encoding) as target_args:
+            _ = self._run(args + target_args)
 
     def mkdir(
         self,
@@ -740,12 +771,15 @@ class SVNRepo:
         add_ignored: bool = False,  # 自动 add 时是否包含 ignore 项
         auto_delete_missing: bool = False,  # 提交前把 missing 转为 delete
         fail_on_conflicts: bool = True,  # 发现冲突则中止提交
+        targets_encoding: Optional[str] = None,
     ) -> CommitResult:
 
         if (message is None) == (message_file is None):
             raise ValueError("Exactly one of `message` or `message_file` must be provided.")
 
         commit_targets: List[str] = [self._target] if not paths else [str(p) for p in paths]
+        if targets_encoding is not None:
+            _encode_targets(commit_targets, targets_encoding)
 
         def selected_status() -> List[StatusItem]:
             if not paths:
@@ -762,6 +796,17 @@ class SVNRepo:
         # (1) 预采样状态摘要
         pre_items = selected_status()
         pre_summary = _summarize_status(pre_items)
+
+        # Validate every preparation target before any working-copy mutation.
+        if targets_encoding is not None:
+            preparation_targets = []
+            if auto_delete_missing:
+                preparation_targets.extend(pre_summary.missing)
+                preparation_targets.extend(p for p in pre_summary.added if not _exists(p))
+            if add_unversioned:
+                preparation_targets.extend(pre_summary.unversioned)
+            if preparation_targets:
+                _encode_targets(preparation_targets, targets_encoding)
 
         # (2) 冲突阻断
         if fail_on_conflicts and (pre_summary.conflicted or pre_summary.tree_conflicted):
@@ -792,7 +837,10 @@ class SVNRepo:
             # 对“版本化缺失”用 delete
             if missing_versioned_sorted:
                 try:
-                    self.delete(missing_versioned_sorted, force=True, keep_local=False)
+                    self.delete(
+                        missing_versioned_sorted, force=True, keep_local=False,
+                        targets_encoding=targets_encoding,
+                    )
                 except SVNCommandError as e:
                     # 不直接崩：把失败信息带回去
                     return CommitResult(
@@ -808,7 +856,10 @@ class SVNRepo:
             # 对“已 add 但缺失”用 revert
             if added_but_missing_sorted:
                 try:
-                    self.revert(added_but_missing_sorted, depth=None, include_parents=False)
+                    self.revert(
+                        added_but_missing_sorted, depth=None, include_parents=False,
+                        targets_encoding=targets_encoding,
+                    )
                 except SVNCommandError as e:
                     return CommitResult(
                         success=False,
@@ -826,7 +877,10 @@ class SVNRepo:
 
         # (4) 可选：自动 add 未受控新文件
         if add_unversioned and pre_summary.unversioned:
-            self.add(pre_summary.unversioned, force=True, no_ignore=add_ignored, depth=None)
+            self.add(
+                pre_summary.unversioned, force=True, no_ignore=add_ignored, depth=None,
+                targets_encoding=targets_encoding,
+            )
             pre_items = selected_status()
             pre_summary = _summarize_status(pre_items)
 
@@ -844,10 +898,9 @@ class SVNRepo:
             args.append("--keep-changelists")
         if include_parents:
             args.append("--include-parents")
-        args += commit_targets
-
         # (6) 执行提交（保留 stdout/stderr/returncode）
-        proc = self._run_result(args)
+        with _target_arguments(commit_targets, targets_encoding) as target_args:
+            proc = self._run_result(args + target_args)
         stdout, stderr, code = proc.stdout, proc.stderr, proc.returncode
 
         rev = _parse_commit_revision(stdout)
