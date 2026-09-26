@@ -2,7 +2,7 @@
 
 当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
-`hide_window` 参数尚未发布；正式包请查阅对应发行标签的文档。
+`hide_window` 和修订属性写入的 `revision` 参数尚未发布；正式包请查阅对应发行标签的文档。
 
 ## 调用约定
 
@@ -11,6 +11,7 @@
 - `revision` 指定内容修订，`peg` 定位历史对象。`peg` 参数和 `@` 消歧仅适用于支持它们的方法。
 - 读取方法的 `Path` 输入始终按字面路径处理。字符串末尾 `@` 保留旧的空 peg 语义；末尾字面量 `@` 使用 `peg=""` 或具体修订消歧。
 - `hide_window=False` 保留原有进程行为；显式 True 只在 Windows 设置无窗口标志，不改变 SVN 参数、认证、输出或超时策略。checkout 的选项也保留在返回实例中，详见 [Windows 窗口策略](windows-paths.md#子进程窗口)。
+- `propset` / `propdel` 的 `revprop=True` 必须显式提供 revision；普通属性写入不能提供 revision。数值、HEAD 或日期表达式原样交给 SVN 解析，不自动查询或补充修订。修改修订属性仍需仓库允许 `pre-revprop-change` 钩子，库不修改钩子或权限。
 - `status()` 不接受历史 peg；字面量 `@` 路径使用 `Path`，字符串末尾 `@` 仍表示原生空 peg。它只添加必要的空 peg 转义，不猜测修订或改查父目录。
 - URL `mkdir/delete` 必须且只能提供 message 或 message_file，并立即提交；工作副本形式不接受提交信息，只调度本地变更。
 - URL `copy/move` 返回 CommitResult；工作副本操作返回 None。多次方法调用不组成事务。
@@ -188,7 +189,7 @@ mkdir(paths: Sequence[Union[str, Path]], *, parents: bool=False, message: Option
 ### SVNRepo.propset
 
 ```text
-propset(name: str, value: str, path: Union[str, Path], *, revprop: bool=False) -> None
+propset(name: str, value: str, path: Union[str, Path], *, revprop: bool=False, revision: Optional[Revision]=None) -> None
 ```
 
 ### SVNRepo.propget
@@ -206,7 +207,7 @@ proplist(path: Union[str, Path], *, revprop: bool=False, revision: Optional[int]
 ### SVNRepo.propdel
 
 ```text
-propdel(name: str, path: Union[str, Path], *, revprop: bool=False) -> None
+propdel(name: str, path: Union[str, Path], *, revprop: bool=False, revision: Optional[Revision]=None) -> None
 ```
 
 ### SVNRepo.resolve
