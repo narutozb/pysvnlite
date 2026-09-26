@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 
 _URL_USERINFO_RE = re.compile(
@@ -183,3 +183,23 @@ class SVNOutputLimitError(SVNCommandError):
     @property
     def category(self) -> str:
         return "output_limit"
+
+
+class SVNProcessStartError(SVNCommandError):
+    """The operating system rejected process creation; SVN did not start."""
+
+    @property
+    def category(self) -> str:
+        return "process_start"
+
+    @property
+    def is_timeout_error(self) -> bool:
+        return False
+
+    @property
+    def errno(self) -> Optional[int]:
+        return self.__cause__.errno if isinstance(self.__cause__, OSError) else None
+
+    @property
+    def winerror(self) -> Optional[int]:
+        return getattr(self.__cause__, "winerror", None)

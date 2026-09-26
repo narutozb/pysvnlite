@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import IO, Iterator, List, Optional, Union
 from urllib.parse import unquote, urlsplit
 
-from .exceptions import SVNCommandError, SVNOutputLimitError
+from .exceptions import SVNCommandError, SVNOutputLimitError, SVNProcessStartError
 
 
 _PUMP_CHUNK_BYTES = 64 * 1024
@@ -346,7 +346,7 @@ def _run_captured(
             ),
         )
     except OSError as error:
-        raise SVNCommandError(full_cmd, -1, "", str(error)) from error
+        raise SVNProcessStartError(full_cmd, -1, "", str(error)) from error
     output: Optional[bytes]
     errors: Optional[bytes]
     try:
@@ -459,7 +459,7 @@ def run_svn_spooled(
                 ),
             )
         except OSError as error:
-            raise SVNCommandError(full_cmd, -1, "", str(error)) from error
+            raise SVNProcessStartError(full_cmd, -1, "", str(error)) from error
 
         if proc.stdout is None or proc.stderr is None:
             _kill_and_wait(proc)

@@ -2,7 +2,7 @@
 
 当前源码的 [SVNRepo](../src/pysvnlite/repo.py)及[模型定义](../src/pysvnlite/models.py)。签名省略 `self`；`Revision = Union[int, str]`，`Path` 来自 `pathlib`，集合类型来自 `typing`。
 
-修订属性写入的 `revision` 参数尚未发布；正式包请查阅对应发行标签的文档。
+修订属性写入的 `revision`、批量目标文件及启动错误分类尚未发布；正式包请查阅对应发行标签的文档。
 
 ## 调用约定
 
@@ -53,7 +53,32 @@ print(result.revision)
 
 `str(exc)` 会脱敏 URL userinfo。`cmd`、`stdout`、`stderr` 和 CommitResult 的原始字段需使用 `redact_url_credentials` 处理后记录；该函数不处理任意命令行密码参数。
 
-`category` 包括 `timeout`、`authentication`、`authorization`、`network`、`not_found`、`property_not_found`、`unknown` 和输出上限子类的 `output_limit`。分类基于原生错误文本，受客户端语言影响。检出路径异常通过 `stderr` 描述，详见 [Windows 路径兼容性](windows-paths.md)。
+`category` 包括 `timeout`、`authentication`、`authorization`、`network`、`not_found`、`property_not_found`、`unknown`、输出上限子类的 `output_limit` 和启动失败子类的 `process_start`。原生错误文本分类受客户端语言影响。检出路径异常通过 `stderr` 描述，详见 [Windows 路径兼容性](windows-paths.md)。
+
+`SVNProcessStartError` 是 `SVNCommandError` 的子类，仅表示操作系统拒绝创建进程。保留 `returncode=-1`、原始 `OSError` 作为 `__cause__`，并暴露 `errno` / `winerror`（不可用时为 None）。例如 Windows 命令行过长的 `winerror=206` 不属于超时。捕获 `SVNCommandError` 的现有代码仍适用；文件写入、原生非零退出或已启动进程的通信失败不属于此子类。
+
+## 批量目标
+
+`add`、`delete`、`revert`、`commit` 的 `targets_encoding=None` 保留原有 argv 传递。显式设置编码时，把原目标清单写入临时文件，通过 SVN 原生 `--targets` 执行；文件在成功、失败或超时后清理。调用方不需要创建目标文件。
+
+- `targets_encoding` 必须对应实际 SVN 客户端读取目标文件的本地编码，库不检测或猜测编码。纯 ASCII 清单可使用 `"ascii"`；非 ASCII 清单须先在临时仓库核验客户端环境。Python UTF-8 模式不证明 SVN 也使用 UTF-8。
+- 按指定编码严格写入，不替换不可表示的字符。为避免原生分行及裁剪改变目标，拒绝空字符串、行首尾空白、CR/LF/NUL，以及带 BOM 或非 ASCII 兼容的编码。目标顺序、重复项和原有 peg 写法保持不变，不自动修正路径。
+- `commit` 仍只运行一次原生提交，不分批生成修订，不回退到父目录；status 仍逐一检查所选目标。自动 add/delete/revert 同样使用目标文件；在准备动作前检查已知准备目标的编码，准备不是事务，不保证失败后自动回滚。
+- `paths=None` 或空列表仍遵循各方法原有默认规则。URL delete 的提交信息要求不变。
+- 仅缩短目标部分的命令行，不解决超长单一路径、提交消息或其他参数。长提交信息使用 `message_file`。原生 Unicode 路径与 diff 限制仍见 [Windows 路径兼容性](windows-paths.md)。
+
+```python
+from pysvnlite import SVNRepo
+
+repo = SVNRepo("working-copy", timeout=60)
+result = repo.commit(
+    message="Selected assets", paths=["working-copy/a.txt", "working-copy/b.txt"],
+    add_unversioned=True, targets_encoding="ascii",
+)
+assert result.success, result.stderr
+```
+
+原生目标文件转换及分行行为见 [Subversion 1.14.5 命令行实现](https://github.com/apache/subversion/blob/1.14.5/subversion/svn/svn.c)。
 
 ## 完整方法签名
 
@@ -156,19 +181,19 @@ switch(url: str, path: Optional[Union[str, Path]]=None, *, revision: Optional[in
 ### SVNRepo.add
 
 ```text
-add(paths: Sequence[Union[str, Path]] | None=None, *, force: bool=True, no_ignore: bool=False, depth: Optional[str]=None) -> None
+add(paths: Sequence[Union[str, Path]] | None=None, *, force: bool=True, no_ignore: bool=False, depth: Optional[str]=None, targets_encoding: Optional[str]=None) -> None
 ```
 
 ### SVNRepo.revert
 
 ```text
-revert(paths: Sequence[Union[str, Path]], *, depth: Optional[str]=None, include_parents: bool=False) -> None
+revert(paths: Sequence[Union[str, Path]], *, depth: Optional[str]=None, include_parents: bool=False, targets_encoding: Optional[str]=None) -> None
 ```
 
 ### SVNRepo.delete
 
 ```text
-delete(paths: Sequence[Union[str, Path]], *, force: bool=False, keep_local: bool=False, message: Optional[str]=None, message_file: Optional[Union[str, Path]]=None) -> None
+delete(paths: Sequence[Union[str, Path]], *, force: bool=False, keep_local: bool=False, message: Optional[str]=None, message_file: Optional[Union[str, Path]]=None, targets_encoding: Optional[str]=None) -> None
 ```
 
 ### SVNRepo.mkdir
@@ -234,7 +259,7 @@ unlock(paths: Sequence[Union[str, Path]], force: bool=False) -> None
 ### SVNRepo.commit
 
 ```text
-commit(*, message: Optional[str]=None, message_file: Optional[Union[str, Path]]=None, paths: Optional[Sequence[Union[str, Path]]]=None, depth: Optional[str]=None, no_unlock: bool=False, keep_changelists: bool=False, include_parents: bool=False, add_unversioned: bool=False, add_ignored: bool=False, auto_delete_missing: bool=False, fail_on_conflicts: bool=True) -> CommitResult
+commit(*, message: Optional[str]=None, message_file: Optional[Union[str, Path]]=None, paths: Optional[Sequence[Union[str, Path]]]=None, depth: Optional[str]=None, no_unlock: bool=False, keep_changelists: bool=False, include_parents: bool=False, add_unversioned: bool=False, add_ignored: bool=False, auto_delete_missing: bool=False, fail_on_conflicts: bool=True, targets_encoding: Optional[str]=None) -> CommitResult
 ```
 
 ### SVNRepo.copy
