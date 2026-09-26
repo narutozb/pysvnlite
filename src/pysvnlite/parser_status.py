@@ -51,6 +51,7 @@ def parse_status_xml(xml_text: str) -> List[StatusItem]:
             commit_rev=commit_rev,
             commit_author=commit_author,
             commit_date=commit_date,
+            props_status=wc_el.get("props") if wc_el is not None else None,
         ))
 
     return items

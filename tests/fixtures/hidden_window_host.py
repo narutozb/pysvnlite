@@ -5,12 +5,12 @@ import json
 import subprocess
 import sys
 import traceback
+from importlib.metadata import version
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-
-from pysvnlite import SVNRepo  # noqa: E402
-from pysvnlite import runner  # noqa: E402
+import pysvnlite
+from pysvnlite import SVNRepo
+from pysvnlite import runner
 
 
 def exercise(root: Path) -> dict:
@@ -58,7 +58,10 @@ def exercise(root: Path) -> dict:
     assert repo.copy([asset], Path(repo.target) / "copy.bin") is None
     assert repo.move([Path(repo.target) / "copy.bin"], Path(repo.target) / "moved.bin") is None
     assert repo.commit(message="copy and move").success
-    return {"host_console": console, "svn_calls": len(calls), "binary_matches": True}
+    return {
+        "host_console": console, "svn_calls": len(calls), "binary_matches": True,
+        "version": version("pysvnlite"), "module": pysvnlite.__file__,
+    }
 
 
 if __name__ == "__main__":

@@ -129,9 +129,10 @@ def test_real_svn_from_pythonw_host(tmp_path):
         pytest.skip("pythonw and Subversion CLI tools are required")
     report = tmp_path / "report.json"
     helper = Path(__file__).parent / "fixtures" / "hidden_window_host.py"
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
     result = subprocess.run(
         [str(pythonw), str(helper), str(tmp_path), str(report)],
-        stdin=subprocess.DEVNULL, capture_output=True, timeout=60,
+        stdin=subprocess.DEVNULL, capture_output=True, timeout=60, env=env,
         creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
     )
     assert report.exists(), result.stderr

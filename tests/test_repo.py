@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 from contextlib import contextmanager
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 
@@ -463,6 +464,49 @@ def test_commit_stops_before_svn_for_tree_conflict(
     assert result.pre_summary.tree_conflicted == [path]
     assert getattr(result.pre_summary, summary_field) == [path]
     assert "Conflicts exist" in result.stderr
+
+
+def test_status_item_preserves_legacy_positional_construction() -> None:
+    item = StatusItem("asset", "normal", None, False, False, False, False, 1, 1, "a", None)
+
+    assert item.path == "asset"
+    assert item.wc_status == "normal"
+    assert item.commit_author == "a"
+    assert item.props_status is None
+
+
+@pytest.mark.parametrize("wc_status", ["normal", "modified", "conflicted"])
+@pytest.mark.parametrize("fail_on_conflicts", [True, False])
+def test_property_conflict_summary_preserves_content_and_guard_option(
+    monkeypatch, wc_status: str, fail_on_conflicts: bool,
+) -> None:
+    item = StatusItem(
+        "asset", wc_status, None, False, False, False, False, 1, 1, "a", None,
+        props_status="conflicted",
+    )
+    repo = SVNRepo("working-copy")
+    monkeypatch.setattr(repo, "status", lambda **kwargs: [item])
+    calls = []
+
+    def native_commit(args):
+        calls.append(args)
+        return CompletedProcess(args, 1, "", "native conflict error")
+
+    monkeypatch.setattr(repo, "_run_result", native_commit)
+    result = repo.commit(message="blocked", fail_on_conflicts=fail_on_conflicts)
+
+    assert item.wc_status == wc_status
+    assert result.pre_summary.conflicted == ["asset"]
+    assert result.pre_summary.modified == (["asset"] if wc_status == "modified" else [])
+    assert result.pre_summary.tree_conflicted == []
+    assert not result.success
+    assert result.revision is None
+    if fail_on_conflicts:
+        assert calls == []
+        assert "Conflicts exist" in result.stderr
+    else:
+        assert calls == [["commit", "-m", "blocked", "working-copy"]]
+        assert result.stderr == "native conflict error"
 
 
 def test_timeout_applies_to_working_copy_operations(monkeypatch) -> None:
