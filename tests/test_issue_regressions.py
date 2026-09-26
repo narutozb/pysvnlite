@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import shutil
+import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from pysvnlite import SVNOutputLimitError, SVNRepo
+from pysvnlite import SVNCommandError, SVNOutputLimitError, SVNRepo
 from pysvnlite.repo import _parse_commit_revision, _with_peg
 
 
@@ -233,3 +234,51 @@ def test_unknown_commit_revision_does_not_query_unrelated_history(
     assert result.success
     assert result.revision is None
     assert result.changed_paths == []
+
+
+def test_revision_property_write_and_delete(working_copy: Path) -> None:
+    repository = working_copy.parent / "repository"
+    hook = repository / "hooks" / (
+        "pre-revprop-change.bat" if os.name == "nt" else "pre-revprop-change"
+    )
+    hook.write_text("@exit /b 0\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n")
+    hook.chmod(0o755)
+    repo = SVNRepo(repository.as_uri(), timeout=15)
+    repo.propset("test:revision", "value", repo.target, revprop=True, revision=1)
+    assert repo.propget("test:revision", repo.target, revprop=True, revision=1) == "value"
+    repo.propdel("test:revision", repo.target, revprop=True, revision="HEAD")
+    assert repo.propget("test:revision", repo.target, revprop=True, revision=1) is None
+
+
+@pytest.mark.parametrize("method", ["propset", "propdel"])
+@pytest.mark.parametrize("revprop,revision", [(True, None), (False, 1)])
+def test_property_write_rejects_invalid_revision_combination(monkeypatch, method, revprop, revision):
+    repo = SVNRepo("file:///test")
+    monkeypatch.setattr(repo, "_run", lambda args: pytest.fail("Invalid input must not execute SVN"))
+    args = ["test:revision", "value", repo.target] if method == "propset" else ["test:revision", repo.target]
+    with pytest.raises(ValueError):
+        getattr(repo, method)(*args, revprop=revprop, revision=revision)
+
+
+@pytest.mark.parametrize("method", ["propset", "propdel"])
+@pytest.mark.parametrize("revision", [0, "HEAD", "{2026-09-01T00:00:00Z}"])
+def test_revision_property_write_forwards_explicit_revision(monkeypatch, method, revision):
+    repo = SVNRepo("file:///repository")
+    calls = []
+    monkeypatch.setattr(repo, "_run", lambda args: calls.append(args) or "")
+    args = ["test:revision", "value", repo.target] if method == "propset" else ["test:revision", repo.target]
+    getattr(repo, method)(*args, revprop=True, revision=revision)
+    assert calls == [[method, *args, "--revprop", "-r", str(revision)]]
+
+
+def test_revision_property_write_preserves_native_hook_rejection(working_copy: Path) -> None:
+    repository = working_copy.parent / "repository"
+    repo = SVNRepo(repository.as_uri(), timeout=15)
+    with pytest.raises(SVNCommandError) as error:
+        repo.propset("test:revision", "rejected", repo.target, revprop=True, revision=1)
+    assert error.value.returncode != 0
+    assert repo.propget("test:revision", repo.target, revprop=True, revision=1) is None
+    hook = repository / "hooks" / (
+        "pre-revprop-change.bat" if os.name == "nt" else "pre-revprop-change"
+    )
+    assert not hook.exists()

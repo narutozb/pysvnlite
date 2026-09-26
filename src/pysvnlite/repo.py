@@ -537,11 +537,16 @@ class SVNRepo:
         _ = self._run(args)
 
     def propset(
-        self, name: str, value: str, path: Union[str, Path], *, revprop: bool = False
+        self, name: str, value: str, path: Union[str, Path], *, revprop: bool = False,
+        revision: Optional[Revision] = None,
     ) -> None:
+        if revprop and revision is None:
+            raise ValueError("Revision property writes require an explicit `revision`.")
+        if not revprop and revision is not None:
+            raise ValueError("`revision` is only valid with `revprop=True` for property writes.")
         args = ["propset", name, value, str(path)]
         if revprop:
-            args.append("--revprop")
+            args += ["--revprop", "-r", str(revision)]
         _ = self._run(args)
 
     def propget(
@@ -587,13 +592,20 @@ class SVNRepo:
         xml_out = self._run(args)
         return parse_proplist_xml(xml_out)
 
-    def propdel(self, name: str, path: Union[str, Path], *, revprop: bool = False) -> None:
+    def propdel(
+        self, name: str, path: Union[str, Path], *, revprop: bool = False,
+        revision: Optional[Revision] = None,
+    ) -> None:
         """
         svn propdel: 删除属性。
         """
+        if revprop and revision is None:
+            raise ValueError("Revision property writes require an explicit `revision`.")
+        if not revprop and revision is not None:
+            raise ValueError("`revision` is only valid with `revprop=True` for property writes.")
         args = ["propdel", name, str(path)]
         if revprop:
-            args.append("--revprop")
+            args += ["--revprop", "-r", str(revision)]
         _ = self._run(args)
 
     def resolve(
