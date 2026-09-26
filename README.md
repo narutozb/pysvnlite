@@ -6,6 +6,8 @@ Python 的 Subversion 命令行封装与 XML 解析库，提供仓库查询、�
 
 版本变化见[变更日志](https://github.com/narutozb/pysvnlite/blob/main/CHANGELOG.md)；main 分支可能包含尚未发布的修改，正式发行包以对应标签为准。
 
+当前源码包含尚未发布的变更，见[变更日志](CHANGELOG.md#未发布)；正式发行包以对应标签为准。
+
 ## 安装
 
 系统需安装 Subversion，并将 `svn` 加入 `PATH`。
